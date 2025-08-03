@@ -1,18 +1,18 @@
 #include "order.h"
 #include "server.h"
-#include "SPSCQueue.h"
+#include "spsc_queue.h"
 #include <thread>
 #include <iostream>
 
 using namespace std;
 
-SPSCQueue<Order, 1024> order_queue;
+SPSCQueue<Client::Order, 1024> order_queue;
 
 void matching_loop() {
     while (true) {
         auto maybe_order = order_queue.dequeue();
         if (maybe_order) {
-            Order order = maybe_order.value();
+            Client::Order order = maybe_order.value();
             cout << "Order dequeue" << "\n";
             cout << order.price << "\n";
         }

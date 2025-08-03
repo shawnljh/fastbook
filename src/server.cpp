@@ -1,12 +1,12 @@
 
 #include <order.h>
 #include <server.h>
-#include <SPSCQueue.h>
+#include <spsc_queue.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <iostream>
 
-extern SPSCQueue<Order, 1024> order_queue;
+extern SPSCQueue<Client::Order, 1024> order_queue;
 
 constexpr int PORT = 8080;
 constexpr int BUFFER_SIZE = 1024;
@@ -75,7 +75,7 @@ void start_tcp_server() {
         }
 
         uint32_t payload_size = ntohl(length_prefix_net);
-        std::vector<uint8_t> payload(payload_size);
+        std::vector<unsigned char> payload(payload_size);
 
         if (read_exact(new_socket, payload.data(), payload_size) != payload_size) {
             cout << "Failed to read payload\n";
@@ -84,10 +84,10 @@ void start_tcp_server() {
 
         try {
             cout << "Payload size: " << payload_size << "\n";
-            Order order = parse_order(payload);
+            Client::Order order = Client::parse_order(payload);
 
             cout << "Order Parsed:\n";
-            cout << "  Side: " << (order.side == Order::Side::Buy ? "Buy" : "Sell") << "\n";
+            cout << "  Side: " << (order.side == Client::Order::Side::Buy ? "Buy" : "Sell") << "\n";
             cout << "  Price: " << order.price << "\n";
             cout << "  Quantity: " << order.quantity << "\n";
 
