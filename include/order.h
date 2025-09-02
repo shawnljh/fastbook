@@ -3,10 +3,10 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <types.h>
 
 namespace Client {
     struct alignas(32) Order {
-        enum class Side: uint8_t {Buy = 0, Sell = 1};
         uint64_t price;
         uint64_t quantity;
         uint64_t account_id;

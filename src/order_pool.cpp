@@ -2,6 +2,6 @@
 #include <optional>
 
 
-Matching::OrderPool::OrderPool(): orders{}, next_index(0) {
+Matching::OrderPool::OrderPool(): orders{}, next_index(1) {
 
 }
