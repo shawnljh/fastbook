@@ -3,7 +3,7 @@
 #include <order.h>
 #include <order_pool.h>
 
-struct IntrusiveListNode {
+struct alignas(24) IntrusiveListNode {
     uint64_t orderId;
     IntrusiveListNode* next;
     IntrusiveListNode* prev;
@@ -26,4 +26,13 @@ struct alignas(64) IntrusiveList {
         void enqueue(IntrusiveListNode* node);
         void remove(IntrusiveListNode* node);
         IntrusiveListNode* dequeue();
+
+    
+    inline uint32_t get_size() const {
+        return size;
+    };
+
+    inline bool is_empty() const {
+        return size == 0;
+    }
 };

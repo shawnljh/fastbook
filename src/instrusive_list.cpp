@@ -19,10 +19,6 @@ void IntrusiveList::remove(IntrusiveListNode* node) {
 IntrusiveListNode* IntrusiveList::dequeue() {
     if (size == 0) return nullptr;
     IntrusiveListNode* node = head.next;
-    head.next = node->next;
-    node->next->prev = &head;
-    node->next = nullptr;
-    node->prev = nullptr;
-    --size;
+    remove(node);
     return node;
 }
