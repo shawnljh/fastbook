@@ -1,105 +1,117 @@
 #pragma once
 
-#include <vector>
-#include <memory>
-#include <unordered_map>
-#include <cstdint>
-#include <optional>
-#include <cstddef>
+#include "types.h"
 #include <cassert>
-#include <types.h>
-#include <intrusive_list.h>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <unordered_map>
+#include <vector>
 
+struct Level; // forward declaration
 
-namespace Matching{
+namespace Matching {
+
+enum class NodeType : uint8_t {
+  Sentinel,
+  Order,
+};
 
 struct alignas(64) Order {
-    uint64_t quantity;    // Order quantity
-    uint64_t quantity_remaining; // Order quantity remaining
-    Side side;              // Buy or sell side
-    AccountId account_id;  // Account identifier
-    uint64_t order_id;    // Unique order ID
-    IntrusiveListNode node; // Node lives in order; 
-    char padding[7];
+  uint64_t quantity;           // Order quantity
+  uint64_t quantity_remaining; // Order quantity remaining
+  AccountId account_id;        // Account identifier
+  uint64_t order_id;           // Unique order ID
+
+  Order *next = nullptr;
+  Order *prev = nullptr;
+
+  Level *level = nullptr;
+
+  Side side; // Buy or sell side
+  NodeType type{NodeType::Order};
+
+  char padding[6];
 };
 
 static_assert(alignof(Order) == 64, "Order struct alignment is not 64 bytes");
 static_assert(sizeof(Order) == 64, "Order struct size is not 64 bytes");
 
-
 class OrderPool {
-    size_t slab_size_;
-    size_t slab_offset_;
-    uint64_t next_index_;
-    std::vector<std::unique_ptr<Order[]>> slabs_;
-    std::unordered_map<uint64_t, uint64_t> id_to_index_;
-    std::vector<uint64_t> free_list_;
+  size_t slab_size_;
+  size_t slab_offset_;
+  uint64_t next_index_;
+  std::vector<std::unique_ptr<Order[]>> slabs_;
+  std::unordered_map<uint64_t, uint64_t> id_to_index_;
+  std::vector<uint64_t> free_list_;
 
 private:
-    Order& get(uint64_t idx) {
-        size_t slab_idx = idx / slab_size_;
-        size_t offset = idx & (slab_size_ - 1); // fast mod
-        return slabs_[slab_idx][offset];
-    }
+  inline Order &get(uint64_t idx) noexcept {
+    size_t slab_idx = idx / slab_size_;
+    size_t offset = idx & (slab_size_ - 1); // fast mod
+    return slabs_[slab_idx][offset];
+  }
 
-    void allocate_slab() {
-        slabs_.push_back(std::make_unique<Order[]>(slab_size_));
-        slab_offset_ = 0;
-    }
+  inline void allocate_slab() noexcept {
+    slabs_.push_back(std::make_unique<Order[]>(slab_size_));
+    slab_offset_ = 0;
+  }
 
 public:
-    explicit OrderPool(size_t slab_size = 1 << 16) // 65536
-        : slab_size_(slab_size), next_index_(0) {
-            static_assert((slab_size & slab_size - 1) == 0, "Slab size should be power of 2")
-            allocate_slab();
-        }
+  explicit OrderPool(size_t slab_size = 1 << 16) // 65536
+      : slab_size_(slab_size), next_index_(0) {
+    assert((slab_size & (slab_size - 1)) == 0 &&
+           "Slab size should be power of 2");
+    allocate_slab();
+  }
 
-        // Allocate a new order (from freelist or bump)
-        Order* allocate(uint64_t order_id,
-            uint64_t quantity,
-            bool is_buy,
-            uint64_t account_id)
-        {
-            uint64_t idx;
-            if (!free_list_.empty()) {
-                // reuse slot from free list
-                idx = free_list_.back();
-                free_list_.pop_back();
-            } else {
-                // Bump allocate from slab
-                if (slab_offset_ == slab_size_) {
-                    allocate_slab();
-                }
-                idx = next_index_++;
-                slab_offset_++;
-            }
+  // Allocate a new order (from freelist or bump)
+  Order *allocate(uint64_t order_id, uint64_t quantity, bool is_buy,
+                  uint64_t account_id) {
+    uint64_t idx;
 
-            Order& o = get(idx);
-            o.quantity = quantity;
-            o.quantity_remaining = quantity;
-            o.side = is_buy ? Side::Buy : Side::Sell;
-            o.account_id = account_id;
-            o.order_id = order_id;
-            o.node = IntrusiveListNode(order_id);
+    if (!free_list_.empty()) {
+      // reuse slot from free list
+      idx = free_list_.back();
+      free_list_.pop_back();
+    } else {
+      // Bump allocate from slab
+      if (slab_offset_ == slab_size_) {
+        allocate_slab();
+      }
+      idx = next_index_++;
+      slab_offset_++;
+    }
 
-            id_to_index_[order_id] = idx;
-            return &o;
-        }
+    Order &o = get(idx);
+    o.quantity = quantity;
+    o.quantity_remaining = quantity;
+    o.side = is_buy ? Side::Bid : Side::Ask;
+    o.account_id = account_id;
+    o.order_id = order_id;
 
-        // Lookup by external ID
-        Order* find(uint64_t order_id) {
-            auto it = id_to_index_.find(order_id);
-            if (it == id_to_index_.end()) return nullptr;
-            return &get(it->second);
-        }
+    id_to_index_[order_id] = idx;
+    return &o;
+  }
 
-        void deallocate(uint64_t order_id) {
-            auto it = id_to_index_.find(order_id);
-            if (it == id_to_index_.end()) return;
-            uint64_t idx = it->second;
-            id_to_index_.erase(it);
+  // Lookup by external ID
+  Order *find(uint64_t order_id) {
+    auto it = id_to_index_.find(order_id);
+    if (it == id_to_index_.end())
+      return nullptr;
+    return &get(it->second);
+  }
 
-            free_list_.push_back(idx);
-        }
+  void deallocate(uint64_t order_id) {
+    auto it = id_to_index_.find(order_id);
+    if (it == id_to_index_.end())
+      return;
+
+    uint64_t idx = it->second;
+    id_to_index_.erase(it);
+
+    free_list_.push_back(idx);
+  }
 };
-}
+}; // namespace Matching

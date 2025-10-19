@@ -1,0 +1,166 @@
+#include "../include/orderbook.h"
+#include "../include/order_pool.h"
+#include <algorithm>
+#include <cassert>
+#include <cstdint>
+#include <optional>
+#include <utility>
+
+void Level::push_back(Matching::Order *o) {
+  o->level = this;
+  o->next = &sentinel;
+  o->prev = sentinel.prev;
+  sentinel.prev->next = o;
+  sentinel.prev = o;
+  size++;
+  volume += o->quantity_remaining;
+};
+
+void Level::pop(Matching::Order *o) {
+  assert(o->type == Matching::NodeType::Order);
+  o->prev->next = o->next;
+  o->next->prev = o->prev;
+  o->next = nullptr;
+  o->prev = nullptr;
+  size--;
+  volume -= o->quantity_remaining;
+};
+
+void Orderbook::addOrder(uint64_t orderId, Price price, uint64_t quantity,
+                         bool is_buy, uint64_t account_id) {
+
+  Matching::Order *order =
+      orderpool.allocate(orderId, quantity, is_buy, account_id);
+
+  uint64_t quantity_remaining = matchOrder(order, price);
+  order->quantity_remaining = quantity_remaining;
+
+  if (quantity_remaining == 0) {
+    // Order fully filled
+    orderpool.deallocate(orderId);
+    return;
+  }
+
+  Side side = order->side;
+  auto &sideOfBook = (side == Side::Bid) ? mBidLevels : mAskLevels;
+
+  auto possibleLevel =
+      (side == Side::Bid) ? findBidPos(price) : findAskPos(price);
+
+  if (possibleLevel != sideOfBook.end() && possibleLevel->price == price) {
+    addToLevel(*possibleLevel, order);
+  } else {
+    Level newLevel = Level(price);
+    addToLevel(newLevel, order);
+    sideOfBook.insert(possibleLevel, std::move(newLevel));
+  }
+};
+
+uint64_t Orderbook::matchOrder(Matching::Order *incoming, Price price) {
+  Side side = incoming->side;
+  auto &opposingLevels = (side == Side::Bid) ? mAskLevels : mBidLevels;
+  uint64_t total_traded = 0;
+  uint64_t quantity_remaining = incoming->quantity_remaining;
+
+  // iterate from best opposite (back)
+  while (quantity_remaining > 0 && !opposingLevels.empty()) {
+    Level &bestOpp = opposingLevels.back();
+
+    bool crossed = Orderbook::crossed(price, bestOpp.price, side);
+
+    if (!crossed)
+      break;
+
+    Matching::Order *resting = bestOpp.sentinel.next;
+    while (quantity_remaining > 0 && resting != &bestOpp.sentinel) {
+      uint64_t traded =
+          std::min(quantity_remaining, resting->quantity_remaining);
+      quantity_remaining -= traded;
+      resting->quantity_remaining -= traded;
+      bestOpp.volume -= traded;
+      total_traded += traded;
+
+      Matching::Order *next = resting->next; // prefetch
+
+      if (resting->quantity_remaining == 0) {
+        bestOpp.pop(resting);
+        orderpool.deallocate(resting->order_id);
+      }
+
+      resting = next;
+    }
+
+    if (bestOpp.size == 0) {
+      opposingLevels.pop_back();
+    }
+  }
+
+  return quantity_remaining;
+}
+
+void Orderbook::removeOrder(uint64_t order_id) {
+  auto order = orderpool.find(order_id);
+  if (order == nullptr)
+    return;
+
+  Level *level = order->level;
+  level->pop(order);
+  Side side = order->side;
+  orderpool.deallocate(order_id);
+
+  if (level->size > 0)
+    return;
+
+  // remove empty level
+  auto &sideOfBook = (side == Side::Bid) ? mBidLevels : mAskLevels;
+
+  auto it = std::find_if(sideOfBook.begin(), sideOfBook.end(),
+                         [level](const Level &l) { return &l == level; });
+
+  if (it != sideOfBook.end()) {
+    sideOfBook.erase(it);
+  }
+}
+
+std::pair<BestLevel, BestLevel> Orderbook::getBestPrices() const {
+  BestLevel bestBid, bestAsk;
+  if (!mBidLevels.empty()) {
+    bestBid = std::make_pair(mBidLevels.back().price, mBidLevels.back().volume);
+  }
+  if (!mAskLevels.empty()) {
+    bestAsk = std::make_pair(mAskLevels.back().price, mAskLevels.back().volume);
+  }
+
+  return {bestBid, bestAsk};
+};
+
+std::vector<Level>::iterator Orderbook::findBidPos(Price price) {
+  // bids: ASC - find first element with level.price >= price
+  return std::find_if(mBidLevels.begin(), mBidLevels.end(),
+                      [price](const Level &L) { return L.price >= price; });
+};
+
+std::vector<Level>::iterator Orderbook::findAskPos(Price price) {
+  // Asks: DESC - find first element with level.price <= price
+  return std::find_if(mAskLevels.begin(), mAskLevels.end(),
+                      [price](const Level &L) { return L.price <= price; });
+};
+
+void Orderbook::addToLevel(Level &level, Matching::Order *order) {
+  assert(order->level == nullptr && "Order already belongs to a level");
+  level.push_back(order);
+}
+
+BestLevel Orderbook::bestBid() const {
+  return mBidLevels.empty()
+             ? std::nullopt
+             : std::make_optional(std::make_pair(mBidLevels.back().price,
+                                                 mBidLevels.back().volume));
+}
+
+BestLevel Orderbook::bestAsk() const {
+  return mAskLevels.empty()
+             ? std::nullopt
+             : std::make_optional(std::make_pair(mAskLevels.back().price,
+                                                 mAskLevels.back().volume));
+}
