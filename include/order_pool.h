@@ -1,5 +1,6 @@
 #pragma once
 
+#include "telemetry.h"
 #include "types.h"
 #include <cassert>
 #include <cstddef>
@@ -39,6 +40,7 @@ static_assert(alignof(Order) == 64, "Order struct alignment is not 64 bytes");
 static_assert(sizeof(Order) == 64, "Order struct size is not 64 bytes");
 
 class OrderPool {
+  Telemetry &telemetry_;
   size_t slab_size_;
   size_t slab_offset_;
   uint64_t next_index_;
@@ -59,8 +61,8 @@ private:
   }
 
 public:
-  explicit OrderPool(size_t slab_size = 1 << 16) // 65536
-      : slab_size_(slab_size), next_index_(0) {
+  explicit OrderPool(Telemetry &telemetry, size_t slab_size = 1 << 16) // 65536
+      : telemetry_(telemetry), slab_size_(slab_size), next_index_(0) {
     assert((slab_size & (slab_size - 1)) == 0 &&
            "Slab size should be power of 2");
     allocate_slab();
@@ -73,9 +75,11 @@ public:
 
     if (!free_list_.empty()) {
       // reuse slot from free list
+      telemetry_.record_alloc(false);
       idx = free_list_.back();
       free_list_.pop_back();
     } else {
+      telemetry_.record_alloc(true);
       // Bump allocate from slab
       if (slab_offset_ == slab_size_) {
         allocate_slab();

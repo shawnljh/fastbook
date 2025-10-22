@@ -28,16 +28,17 @@ void Level::pop(Matching::Order *o) {
 
 void Orderbook::addOrder(uint64_t orderId, Price price, uint64_t quantity,
                          bool is_buy, uint64_t account_id) {
-
+  ScopedTimer t(telemetry_);
+  telemetry_.record_order();
   Matching::Order *order =
-      orderpool.allocate(orderId, quantity, is_buy, account_id);
+      orderpool_.allocate(orderId, quantity, is_buy, account_id);
 
   uint64_t quantity_remaining = matchOrder(order, price);
   order->quantity_remaining = quantity_remaining;
 
   if (quantity_remaining == 0) {
     // Order fully filled
-    orderpool.deallocate(orderId);
+    orderpool_.deallocate(orderId);
     return;
   }
 
@@ -57,6 +58,7 @@ void Orderbook::addOrder(uint64_t orderId, Price price, uint64_t quantity,
 };
 
 uint64_t Orderbook::matchOrder(Matching::Order *incoming, Price price) {
+  telemetry_.record_match();
   Side side = incoming->side;
   auto &opposingLevels = (side == Side::Bid) ? mAskLevels : mBidLevels;
   uint64_t total_traded = 0;
@@ -84,7 +86,7 @@ uint64_t Orderbook::matchOrder(Matching::Order *incoming, Price price) {
 
       if (resting->quantity_remaining == 0) {
         bestOpp.pop(resting);
-        orderpool.deallocate(resting->order_id);
+        orderpool_.deallocate(resting->order_id);
       }
 
       resting = next;
@@ -99,14 +101,15 @@ uint64_t Orderbook::matchOrder(Matching::Order *incoming, Price price) {
 }
 
 void Orderbook::removeOrder(uint64_t order_id) {
-  auto order = orderpool.find(order_id);
+  telemetry_.record_cancel();
+  auto order = orderpool_.find(order_id);
   if (order == nullptr)
     return;
 
   Level *level = order->level;
   level->pop(order);
   Side side = order->side;
-  orderpool.deallocate(order_id);
+  orderpool_.deallocate(order_id);
 
   if (level->size > 0)
     return;

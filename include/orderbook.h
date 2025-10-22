@@ -1,5 +1,6 @@
 #pragma once
 #include "order_pool.h"
+#include "telemetry.h"
 #include "types.h"
 #include <cstdint>
 #include <optional>
@@ -46,7 +47,8 @@ struct Level {
 using BestLevel = std::optional<std::pair<Price, Volume>>;
 
 struct Orderbook {
-  Matching::OrderPool orderpool;
+  Matching::OrderPool orderpool_;
+  Telemetry telemetry_;
 
   Orderbook() = default;
 
