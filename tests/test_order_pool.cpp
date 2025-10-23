@@ -1,5 +1,6 @@
 #include "order_pool.h"
 #include "telemetry.h"
+#include <cstddef>
 #include <gtest/gtest.h>
 
 class OrderPoolTest : public ::testing::Test {
@@ -48,6 +49,14 @@ TEST_F(OrderPoolTest, SlabExpansion) {
     pool_.allocate(i, 1, true, i);
   }
   EXPECT_GE(telemetry_.total_allocs.load(), 9u);
+}
+
+TEST_F(OrderPoolTest, AllocateIdempotent) {
+  auto *o1 = pool_.allocate(1, 10, true, 101);
+  auto *o2 = pool_.allocate(1, 10, true, 101);
+
+  EXPECT_EQ(o1, o2);
+  EXPECT_NE(o1, nullptr);
 }
 
 TEST_F(OrderPoolTest, DoubleDeallocateDoesNotCrash) {

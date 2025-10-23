@@ -61,7 +61,6 @@ uint64_t Orderbook::matchOrder(Matching::Order *incoming, Price price) {
   telemetry_.record_match();
   Side side = incoming->side;
   auto &opposingLevels = (side == Side::Bid) ? mAskLevels : mBidLevels;
-  uint64_t total_traded = 0;
   uint64_t quantity_remaining = incoming->quantity_remaining;
 
   // iterate from best opposite (back)
@@ -80,7 +79,6 @@ uint64_t Orderbook::matchOrder(Matching::Order *incoming, Price price) {
       quantity_remaining -= traded;
       resting->quantity_remaining -= traded;
       bestOpp.volume -= traded;
-      total_traded += traded;
 
       Matching::Order *next = resting->next; // prefetch
 

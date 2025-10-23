@@ -31,6 +31,7 @@ add_executable(tests
     tests/main_test.cpp
     tests/test_order.cpp
     tests/test_order_pool.cpp
+    tests/test_order_book.cpp
 )
 target_link_libraries(tests PRIVATE fastbook_lib GTest::GTest GTest::Main)
 

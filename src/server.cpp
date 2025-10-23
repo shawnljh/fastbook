@@ -10,7 +10,6 @@
 extern SPSCQueue<Client::Order, 1024> order_queue;
 
 constexpr int PORT = 8080;
-constexpr int BUFFER_SIZE = 1024;
 
 ssize_t read_exact(int fd, void *buffer, size_t bytes) {
   size_t total_read = 0;
@@ -32,7 +31,6 @@ void start_tcp_server() {
   int opt = 1;
   socklen_t addrlen = sizeof(address);
 
-  char buffer[BUFFER_SIZE] = {0};
   // Creating socket file descriptor
   if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
     perror("Socket failed");

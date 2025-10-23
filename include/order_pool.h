@@ -71,6 +71,10 @@ public:
   Order *allocate(uint64_t order_id, uint64_t quantity, bool is_buy,
                   uint64_t account_id) {
     uint64_t idx;
+    auto existingOrder = this->find(order_id);
+    if (existingOrder != nullptr) {
+      return existingOrder;
+    }
 
     if (!free_list_.empty()) {
       // reuse slot from free list
