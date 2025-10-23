@@ -19,7 +19,6 @@ add_library(fastbook_lib
     src/order.cpp
     src/order_pool.cpp
     src/orderbook.cpp
-    src/ring_buffer.cpp
     src/server.cpp
 )
 target_include_directories(fastbook_lib PUBLIC ${CMAKE_SOURCE_DIR}/include)
@@ -32,7 +31,6 @@ add_executable(tests
     tests/main_test.cpp
     tests/test_order.cpp
     tests/test_order_pool.cpp
-    tests/test_ring_buffer.cpp
 )
 target_link_libraries(tests PRIVATE fastbook_lib GTest::GTest GTest::Main)
 

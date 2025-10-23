@@ -1,6 +1,6 @@
-#include "../include/order.h"
-#include "../include/server.h"
-#include "../include/spsc_queue.h"
+#include "order.h"
+#include "server.h"
+#include "spsc_queue.h"
 #include <iostream>
 #include <thread>
 

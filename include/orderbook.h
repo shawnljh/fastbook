@@ -47,10 +47,10 @@ struct Level {
 using BestLevel = std::optional<std::pair<Price, Volume>>;
 
 struct Orderbook {
-  Matching::OrderPool orderpool_;
   Telemetry telemetry_;
+  Matching::OrderPool orderpool_;
 
-  Orderbook() = default;
+  Orderbook() : telemetry_(), orderpool_(telemetry_) {}
 
   // Adds to orderbook
   void addOrder(uint64_t orderId, Price price, uint64_t quantity, bool is_buy,

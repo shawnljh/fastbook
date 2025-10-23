@@ -61,10 +61,12 @@ struct Telemetry {
   void dump_percentiles() const noexcept {
     if (latencies.empty())
       return;
-    std::sort(latencies.begin(), latencies.end());
+    auto sorted_latencies = latencies;
+    std::sort(sorted_latencies.begin(), sorted_latencies.end());
     auto get = [&](double p) {
-      size_t idx = std::min<size_t>(latencies.size() - 1, p * latencies.size());
-      return latencies[idx];
+      size_t idx = std::min<size_t>(sorted_latencies.size() - 1,
+                                    p * sorted_latencies.size());
+      return sorted_latencies[idx];
     };
 
     printf("p50=%lu ns  p90=%lu ns  p99=%lu ns  p999=%lu ns\n", get(0.50),
