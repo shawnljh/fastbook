@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -48,11 +49,12 @@ void Orderbook::addOrder(uint64_t orderId, Price price, uint64_t quantity,
   auto possibleLevel =
       (side == Side::Bid) ? findBidPos(price) : findAskPos(price);
 
-  if (possibleLevel != sideOfBook.end() && possibleLevel->price == price) {
-    addToLevel(*possibleLevel, order);
+  if (possibleLevel != sideOfBook.end() &&
+      possibleLevel->get()->price == price) {
+    addToLevel(*possibleLevel->get(), order);
   } else {
-    Level newLevel = Level(price);
-    addToLevel(newLevel, order);
+    auto newLevel = std::make_unique<Level>(price);
+    addToLevel(*newLevel, order);
     sideOfBook.insert(possibleLevel, std::move(newLevel));
   }
 };
@@ -65,7 +67,7 @@ uint64_t Orderbook::matchOrder(Matching::Order *incoming, Price price) {
 
   // iterate from best opposite (back)
   while (quantity_remaining > 0 && !opposingLevels.empty()) {
-    Level &bestOpp = opposingLevels.back();
+    Level &bestOpp = *opposingLevels.back();
 
     bool crossed = Orderbook::crossed(price, bestOpp.price, side);
 
@@ -100,7 +102,7 @@ uint64_t Orderbook::matchOrder(Matching::Order *incoming, Price price) {
 
 void Orderbook::removeOrder(uint64_t order_id) {
   telemetry_.record_cancel();
-  auto order = orderpool_.find(order_id);
+  auto *order = orderpool_.find(order_id);
   if (order == nullptr)
     return;
 
@@ -115,8 +117,9 @@ void Orderbook::removeOrder(uint64_t order_id) {
   // remove empty level
   auto &sideOfBook = (side == Side::Bid) ? mBidLevels : mAskLevels;
 
-  auto it = std::find_if(sideOfBook.begin(), sideOfBook.end(),
-                         [level](const Level &l) { return &l == level; });
+  auto it = std::find_if(
+      sideOfBook.begin(), sideOfBook.end(),
+      [level](const std::unique_ptr<Level> &p) { return p.get() == level; });
 
   if (it != sideOfBook.end()) {
     sideOfBook.erase(it);
@@ -126,25 +129,31 @@ void Orderbook::removeOrder(uint64_t order_id) {
 std::pair<BestLevel, BestLevel> Orderbook::getBestPrices() const {
   BestLevel bestBid, bestAsk;
   if (!mBidLevels.empty()) {
-    bestBid = std::make_pair(mBidLevels.back().price, mBidLevels.back().volume);
+    bestBid =
+        std::make_pair(mBidLevels.back()->price, mBidLevels.back()->volume);
   }
   if (!mAskLevels.empty()) {
-    bestAsk = std::make_pair(mAskLevels.back().price, mAskLevels.back().volume);
+    bestAsk =
+        std::make_pair(mAskLevels.back()->price, mAskLevels.back()->volume);
   }
 
   return {bestBid, bestAsk};
 };
 
-std::vector<Level>::iterator Orderbook::findBidPos(Price price) {
-  // bids: ASC - find first element with level.price >= price
-  return std::find_if(mBidLevels.begin(), mBidLevels.end(),
-                      [price](const Level &L) { return L.price >= price; });
+Orderbook::BidIt Orderbook::findBidPos(Price price) {
+  // bids: ascending, best at back
+  return std::upper_bound(mBidLevels.begin(), mBidLevels.end(), price,
+                          [](Price price, const std::unique_ptr<Level> &L) {
+                            return price < L->price;
+                          });
 };
 
-std::vector<Level>::iterator Orderbook::findAskPos(Price price) {
-  // Asks: DESC - find first element with level.price <= price
-  return std::find_if(mAskLevels.begin(), mAskLevels.end(),
-                      [price](const Level &L) { return L.price <= price; });
+Orderbook::AskIt Orderbook::findAskPos(Price price) {
+  // Asks: descending, best at back
+  return std::upper_bound(mAskLevels.begin(), mAskLevels.end(), price,
+                          [](Price price, const std::unique_ptr<Level> &L) {
+                            return price > L->price;
+                          });
 };
 
 void Orderbook::addToLevel(Level &level, Matching::Order *order) {
@@ -155,13 +164,13 @@ void Orderbook::addToLevel(Level &level, Matching::Order *order) {
 BestLevel Orderbook::bestBid() const {
   return mBidLevels.empty()
              ? std::nullopt
-             : std::make_optional(std::make_pair(mBidLevels.back().price,
-                                                 mBidLevels.back().volume));
+             : std::make_optional(std::make_pair(mBidLevels.back()->price,
+                                                 mBidLevels.back()->volume));
 }
 
 BestLevel Orderbook::bestAsk() const {
   return mAskLevels.empty()
              ? std::nullopt
-             : std::make_optional(std::make_pair(mAskLevels.back().price,
-                                                 mAskLevels.back().volume));
+             : std::make_optional(std::make_pair(mAskLevels.back()->price,
+                                                 mAskLevels.back()->volume));
 }

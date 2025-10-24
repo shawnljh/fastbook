@@ -38,3 +38,26 @@ TEST_F(OrderBookTest, CrossedOrdersMatchImmediately) {
   EXPECT_FALSE(bestBid.has_value());
   EXPECT_FALSE(bestAsk.has_value());
 }
+
+TEST_F(OrderBookTest, RemainingCrossShouldRest) {
+  book.addOrder(1, 100, 10, true, 1);
+  book.addOrder(2, 99, 11, false, 2);
+
+  auto [bestBid, bestAsk] = book.getBestPrices();
+
+  EXPECT_FALSE(bestBid.has_value());
+  EXPECT_TRUE(bestAsk.has_value());
+  auto [bestAskPrice, bestAskQuantity] = bestAsk.value();
+  EXPECT_EQ(bestAskPrice, 99);
+  EXPECT_EQ(bestAskQuantity, 1);
+}
+
+TEST_F(OrderBookTest, PartialFillLeavesRemainingVolume) {
+  book.addOrder(1, 100, 10, true, 1);
+  book.addOrder(2, 99, 4, false, 2);
+
+  auto [bestBid, bestAsk] = book.getBestPrices();
+  ASSERT_TRUE(bestBid.has_value());
+  ASSERT_EQ(bestBid->second, 6); // 10 - 4
+  EXPECT_FALSE(bestAsk.has_value());
+}

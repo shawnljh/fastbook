@@ -1,6 +1,5 @@
 #include "order_pool.h"
 #include "telemetry.h"
-#include <cstddef>
 #include <gtest/gtest.h>
 
 class OrderPoolTest : public ::testing::Test {

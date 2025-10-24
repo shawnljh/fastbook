@@ -6,7 +6,6 @@
 #include <optional>
 #include <sys/types.h>
 #include <utility>
-#include <vector>
 
 struct MatchResult {
   uint64_t total_traded;
@@ -69,22 +68,22 @@ struct Orderbook {
   [[nodiscard]] inline Volume totalBidVolume() const noexcept {
     Volume v = 0;
     for (auto &lvl : mBidLevels)
-      v += lvl.volume;
+      v += lvl->volume;
     return v;
   }
 
   [[nodiscard]] inline Volume totalAskVolume() const noexcept {
     Volume v = 0;
     for (auto &lvl : mAskLevels)
-      v += lvl.volume;
+      v += lvl->volume;
     return v;
   }
 
 private:
   //   bids sorted ASC (best at index -1), asks sorted DESC (best at index
   //   -1).
-  std::vector<Level> mBidLevels;
-  std::vector<Level> mAskLevels;
+  std::vector<std::unique_ptr<Level>> mBidLevels;
+  std::vector<std::unique_ptr<Level>> mAskLevels;
 
   // Adds to the specific orderbook side
   void addToLevel(Level &level, Matching::Order *order);
@@ -93,7 +92,10 @@ private:
     return (s == Side::Bid) ? (incoming >= resting) : (incoming <= resting);
   }
 
+  using BidIt = std::vector<std::unique_ptr<Level>>::iterator;
+  using AskIt = std::vector<std::unique_ptr<Level>>::iterator;
+
   // finds the nearest or equal price level
-  std::vector<Level>::iterator findBidPos(Price price);
-  std::vector<Level>::iterator findAskPos(Price price);
+  BidIt findBidPos(Price price);
+  AskIt findAskPos(Price price);
 };
