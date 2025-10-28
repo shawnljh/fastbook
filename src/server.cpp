@@ -85,17 +85,16 @@ void start_tcp_server() {
     }
 
     try {
-      cout << "Payload size: " << payload_size << "\n";
+      // cout << "Payload size: " << payload_size << "\n";
+
       Client::Order order = Client::parse_order(payload);
 
-      cout << "Order Parsed:\n";
-      cout << "  Side: " << (order.side == Side::Bid ? "Bid" : "Ask") << "\n";
-      cout << "  Price: " << order.price << "\n";
-      cout << "  Quantity: " << order.quantity << "\n";
-
-      if (order_queue.enqueue(order)) {
-        cout << "Order enqueued" << "\n";
-      }
+      // cout << "Order Parsed:\n";
+      // cout << "  Side: " << (order.side == Side::Bid ? "Bid" : "Ask") <<
+      // "\n"; cout << "  Price: " << order.price << "\n"; cout << "  Quantity:
+      // " << order.quantity << "\n";
+      //
+      order_queue.enqueue(order);
 
     } catch (const std::exception &e) {
       cerr << "Parse error: " << e.what() << "\n";

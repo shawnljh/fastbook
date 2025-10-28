@@ -4,7 +4,6 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
-#include <vector>
 
 struct Telemetry {
   // Counters
@@ -12,11 +11,14 @@ struct Telemetry {
   std::atomic<uint64_t> matched_orders{0};
   std::atomic<uint64_t> cancelled_orders{0};
   std::atomic<uint64_t> total_latency_ns{0};
-  std::atomic<uint64_t> max_latency_ns{0};
 
   std::atomic<uint64_t> total_allocs{0};
   std::atomic<uint64_t> reused_allocs{0};
-  std::vector<uint64_t> latencies;
+
+  static constexpr uint64_t BIN_WIDTH_NS = 100;       // each bin = 100 ns
+  static constexpr uint64_t MAX_TRACK_NS = 5'000'000; // 5 ms cap
+  static constexpr size_t NUM_BINS = MAX_TRACK_NS / BIN_WIDTH_NS + 1;
+  std::array<std::atomic<uint64_t>, NUM_BINS> hist{};
 
   void record_order() noexcept {
     total_orders.fetch_add(1, std::memory_order_relaxed);
@@ -37,12 +39,10 @@ struct Telemetry {
   }
 
   void record_latency(uint64_t ns) noexcept {
-    latencies.push_back(ns);
+    size_t idx = std::min<size_t>(ns / BIN_WIDTH_NS, NUM_BINS - 1);
+    hist[idx].fetch_add(1, std::memory_order_relaxed);
+
     total_latency_ns.fetch_add(ns, std::memory_order_relaxed);
-    uint64_t prev = max_latency_ns.load(std::memory_order_relaxed);
-    while (prev < ns && !max_latency_ns.compare_exchange_weak(
-                            prev, ns, std::memory_order_relaxed)) {
-    }
   }
 
   double avg_latency_ns() const noexcept {
@@ -59,18 +59,29 @@ struct Telemetry {
   }
 
   void dump_percentiles() const noexcept {
-    if (latencies.empty())
+    uint64_t total = 0;
+    for (auto &h : hist)
+      total += h.load(std::memory_order_relaxed);
+    if (total == 0)
       return;
-    auto sorted_latencies = latencies;
-    std::sort(sorted_latencies.begin(), sorted_latencies.end());
-    auto get = [&](double p) {
-      size_t idx = std::min<size_t>(sorted_latencies.size() - 1,
-                                    p * sorted_latencies.size());
-      return sorted_latencies[idx];
+
+    auto find_percentile = [&](double target) {
+      uint64_t cumulative = 0;
+      for (size_t i = 0; i < NUM_BINS; ++i) {
+        cumulative += hist[i].load(std::memory_order_relaxed);
+        if (double(cumulative) / total >= target)
+          return i * BIN_WIDTH_NS;
+      }
+      return (NUM_BINS - 1) * BIN_WIDTH_NS;
     };
 
-    printf("p50=%lu ns  p90=%lu ns  p99=%lu ns  p999=%lu ns\n", get(0.50),
-           get(0.90), get(0.99), get(0.999));
+    auto p50 = find_percentile(0.50);
+    auto p90 = find_percentile(0.90);
+    auto p99 = find_percentile(0.99);
+    auto p999 = find_percentile(0.999);
+
+    std::printf("p50=%lu ns  p90=%lu ns  p99=%lu ns  p999=%lu ns\n", p50, p90,
+                p99, p999);
   }
 
   void dump(double elapsed_s) const noexcept {
@@ -78,8 +89,7 @@ struct Telemetry {
     std::printf("[FastBook Telemetry]\n");
     std::printf("orders=%lu matched=%lu cancelled=%lu\n", total_orders.load(),
                 matched_orders.load(), cancelled_orders.load());
-    std::printf("avg_latency=%.2f ns  max_latency=%lu ns\n", avg_latency_ns(),
-                max_latency_ns.load());
+    std::printf("avg_latency=%.2f ns", avg_latency_ns());
     std::printf("throughput=%.2f ops/s\n", throughput);
     std::printf("allocations=%lu reused=%.2f%%\n", total_allocs.load(),
                 reuse_ratio());

@@ -1,12 +1,16 @@
 #include "orderbook.h"
 #include "order_pool.h"
+#include "types.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <utility>
 
+// Level methods
 void Level::push_back(Matching::Order *o) {
   o->level = this;
   o->next = &sentinel;
@@ -25,7 +29,24 @@ void Level::pop(Matching::Order *o) {
   o->prev = nullptr;
   size--;
   volume -= o->quantity_remaining;
+  o->level = nullptr;
 };
+
+std::string Level::toString() const {
+  std::ostringstream oss;
+  oss << "Level(price=" << price << ", size=" << size << ", volume=" << volume
+      << ")\n";
+
+  const Matching::Order *curr = sentinel.next;
+  while (curr != &sentinel) {
+    oss << "  Order{id=" << curr->order_id
+        << ", qty_rem=" << curr->quantity_remaining
+        << ", side=" << (curr->side == Side::Bid ? "Bid" : "Ask")
+        << ", acct=" << curr->account_id << "}\n";
+    curr = curr->next;
+  }
+  return oss.str();
+}
 
 void Orderbook::addOrder(uint64_t orderId, Price price, uint64_t quantity,
                          bool is_buy, uint64_t account_id) {
@@ -142,18 +163,16 @@ std::pair<BestLevel, BestLevel> Orderbook::getBestPrices() const {
 
 Orderbook::BidIt Orderbook::findBidPos(Price price) {
   // bids: ascending, best at back
-  return std::upper_bound(mBidLevels.begin(), mBidLevels.end(), price,
-                          [](Price price, const std::unique_ptr<Level> &L) {
-                            return price < L->price;
-                          });
+  return std::lower_bound(mBidLevels.begin(), mBidLevels.end(), price,
+                          [](const std::unique_ptr<Level> &L,
+                             const Price price) { return L->price < price; });
 };
 
 Orderbook::AskIt Orderbook::findAskPos(Price price) {
   // Asks: descending, best at back
-  return std::upper_bound(mAskLevels.begin(), mAskLevels.end(), price,
-                          [](Price price, const std::unique_ptr<Level> &L) {
-                            return price > L->price;
-                          });
+  return std::lower_bound(mAskLevels.begin(), mAskLevels.end(), price,
+                          [](const std::unique_ptr<Level> &L,
+                             const Price price) { return L->price > price; });
 };
 
 void Orderbook::addToLevel(Level &level, Matching::Order *order) {
@@ -173,4 +192,53 @@ BestLevel Orderbook::bestAsk() const {
              ? std::nullopt
              : std::make_optional(std::make_pair(mAskLevels.back()->price,
                                                  mAskLevels.back()->volume));
+}
+
+std::string Orderbook::toString() const {
+  std::ostringstream oss;
+
+  oss << "=== ORDERBOOK ===\n";
+
+  // --- Asks (print best last, since stored descending) ---
+  oss << "[ASKS]\n";
+  if (mAskLevels.empty()) {
+    oss << "  <empty>\n";
+  } else {
+    for (auto it = mAskLevels.rbegin(); it != mAskLevels.rend(); ++it) {
+      const Level &L = **it;
+      oss << "  Price: " << L.price << " | Size: " << L.size
+          << " | Vol: " << L.volume << '\n';
+      const Matching::Order *curr = L.sentinel.next;
+      while (curr != &L.sentinel) {
+        oss << "    → id=" << curr->order_id
+            << " qty=" << curr->quantity_remaining
+            << " acct=" << curr->account_id
+            << " side=" << (curr->side == Side::Bid ? "Bid" : "Ask") << '\n';
+        curr = curr->next;
+      }
+    }
+  }
+
+  // --- Bids (stored ascending) ---
+  oss << "[BIDS]\n";
+  if (mBidLevels.empty()) {
+    oss << "  <empty>\n";
+  } else {
+    for (auto it = mBidLevels.rbegin(); it != mBidLevels.rend(); ++it) {
+      const Level &L = **it;
+      oss << "  Price: " << L.price << " | Size: " << L.size
+          << " | Vol: " << L.volume << '\n';
+      const Matching::Order *curr = L.sentinel.next;
+      while (curr != &L.sentinel) {
+        oss << "    → id=" << curr->order_id
+            << " qty=" << curr->quantity_remaining
+            << " acct=" << curr->account_id
+            << " side=" << (curr->side == Side::Bid ? "Bid" : "Ask") << '\n';
+        curr = curr->next;
+      }
+    }
+  }
+
+  oss << "=================\n";
+  return oss.str();
 }

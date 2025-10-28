@@ -41,6 +41,7 @@ struct Level {
   void push_back(Matching::Order *o);
   void pop(Matching::Order *o);
   Matching::Order *front() const { return empty() ? nullptr : sentinel.next; };
+  std::string toString() const;
 };
 
 using BestLevel = std::optional<std::pair<Price, Volume>>;
@@ -78,6 +79,10 @@ struct Orderbook {
       v += lvl->volume;
     return v;
   }
+
+  const auto &bids() const noexcept { return mBidLevels; }
+  const auto &asks() const noexcept { return mAskLevels; }
+  std::string toString() const;
 
 private:
   //   bids sorted ASC (best at index -1), asks sorted DESC (best at index
