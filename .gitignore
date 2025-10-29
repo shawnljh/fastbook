@@ -46,7 +46,7 @@ build/
 .cache/
 
 # ignore generated order data
-./client/orders.bin
-./client/orders.csv
+/client/orders.bin
+/client/orders.csv
 
 *.ipynb_checkpoints
