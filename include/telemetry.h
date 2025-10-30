@@ -15,7 +15,7 @@ struct Telemetry {
   std::atomic<uint64_t> total_allocs{0};
   std::atomic<uint64_t> reused_allocs{0};
 
-  static constexpr uint64_t BIN_WIDTH_NS = 100;       // each bin = 100 ns
+  static constexpr uint64_t BIN_WIDTH_NS = 25;        // each bin = 100 ns
   static constexpr uint64_t MAX_TRACK_NS = 5'000'000; // 5 ms cap
   static constexpr size_t NUM_BINS = MAX_TRACK_NS / BIN_WIDTH_NS + 1;
   std::array<std::atomic<uint64_t>, NUM_BINS> hist{};

@@ -23,8 +23,8 @@ uint64_t Client::swap_uint64(uint64_t val) {
 }
 
 Client::Order Client::parse_order(const std::vector<uint8_t> &payload) {
-  if (payload.size() != 25) {
-    // 1 + 8 + 8 + 8 Bytes
+  if (payload.size() != 26) {
+    // 1 + 8 + 8 + 8 + 1 Bytes
     throw std::runtime_error("Invalid payload size for Order");
   }
 
@@ -41,6 +41,8 @@ Client::Order Client::parse_order(const std::vector<uint8_t> &payload) {
   uint64_t account_id_net;
   std::memcpy(&account_id_net, &payload[17], sizeof(account_id_net));
   order.account_id = Client::swap_uint64(account_id_net);
+
+  order.order_type = static_cast<OrderType>(payload[25]); // <-- new byte
 
   return order;
 }

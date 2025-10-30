@@ -55,7 +55,7 @@ void Orderbook::addOrder(uint64_t orderId, Price price, uint64_t quantity,
   Matching::Order *order =
       orderpool_.allocate(orderId, quantity, is_buy, account_id);
 
-  uint64_t quantity_remaining = matchOrder(order, price);
+  uint64_t quantity_remaining = matchLimitOrder(order, price);
   order->quantity_remaining = quantity_remaining;
 
   if (quantity_remaining == 0) {
@@ -80,12 +80,11 @@ void Orderbook::addOrder(uint64_t orderId, Price price, uint64_t quantity,
   }
 };
 
-uint64_t Orderbook::matchOrder(Matching::Order *incoming, Price price) {
-  telemetry_.record_match();
+uint64_t Orderbook::matchLimitOrder(Matching::Order *incoming, Price price) {
   Side side = incoming->side;
   auto &opposingLevels = (side == Side::Bid) ? mAskLevels : mBidLevels;
   uint64_t quantity_remaining = incoming->quantity_remaining;
-
+  bool recorded = false;
   // iterate from best opposite (back)
   while (quantity_remaining > 0 && !opposingLevels.empty()) {
     Level &bestOpp = *opposingLevels.back();
@@ -94,6 +93,50 @@ uint64_t Orderbook::matchOrder(Matching::Order *incoming, Price price) {
 
     if (!crossed)
       break;
+
+    if (!recorded) {
+      recorded = true;
+      telemetry_.record_match();
+    }
+
+    Matching::Order *resting = bestOpp.sentinel.next;
+    while (quantity_remaining > 0 && resting != &bestOpp.sentinel) {
+      uint64_t traded =
+          std::min(quantity_remaining, resting->quantity_remaining);
+      quantity_remaining -= traded;
+      resting->quantity_remaining -= traded;
+      bestOpp.volume -= traded;
+
+      Matching::Order *next = resting->next; // prefetch
+
+      if (resting->quantity_remaining == 0) {
+        bestOpp.pop(resting);
+        orderpool_.deallocate(resting->order_id);
+      }
+
+      resting = next;
+    }
+
+    if (bestOpp.size == 0) {
+      opposingLevels.pop_back();
+    }
+  }
+
+  return quantity_remaining;
+}
+
+uint64_t Orderbook::matchMarketOrder(bool is_buy, uint64_t quantity) {
+  auto &opposingLevels = (is_buy) ? mAskLevels : mBidLevels;
+  uint64_t quantity_remaining = quantity;
+  bool recorded = false;
+  // iterate from best opposite (back)
+  while (quantity_remaining > 0 && !opposingLevels.empty()) {
+    Level &bestOpp = *opposingLevels.back();
+
+    if (!recorded) {
+      recorded = true;
+      telemetry_.record_match();
+    }
 
     Matching::Order *resting = bestOpp.sentinel.next;
     while (quantity_remaining > 0 && resting != &bestOpp.sentinel) {

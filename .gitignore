@@ -42,11 +42,15 @@
 
 .vscode/
 build/
+build-profile/
 
 .cache/
 
 # ignore generated order data
 /client/orders.bin
 /client/orders.csv
+out.folded
+out.perf
+perf.data
 
 *.ipynb_checkpoints

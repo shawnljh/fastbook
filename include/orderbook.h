@@ -58,7 +58,8 @@ struct Orderbook {
 
   void removeOrder(uint64_t orderId);
 
-  uint64_t matchOrder(Matching::Order *incoming, Price price);
+  uint64_t matchLimitOrder(Matching::Order *incoming, Price price);
+  uint64_t matchMarketOrder(bool is_buy, uint64_t quantity);
 
   [[nodiscard]] std::pair<BestLevel, BestLevel> getBestPrices() const;
 

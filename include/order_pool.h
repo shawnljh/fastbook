@@ -19,20 +19,21 @@ enum class NodeType : uint8_t {
 };
 
 struct alignas(64) Order {
-  uint64_t quantity;           // Order quantity
-  uint64_t quantity_remaining; // Order quantity remaining
-  AccountId account_id;        // Account identifier
-  uint64_t order_id;           // Unique order ID
+  uint64_t quantity;           // 8 Bytes Order quantity
+  uint64_t quantity_remaining; // 8 Bytes Order quantity remaining
+  AccountId account_id;        // 8 Bytes Account identifier
+  uint64_t order_id;           // 8 bytes Unique order ID
 
-  Order *next = nullptr;
-  Order *prev = nullptr;
+  Order *next = nullptr; // 8 bytes
+  Order *prev = nullptr; // 8 bytes
 
-  Level *level = nullptr;
+  Level *level = nullptr; // 8 bytes
 
-  Side side; // Buy or sell side
-  NodeType type{NodeType::Order};
+  Side side;                      // 1 byte Buy or sell side
+  NodeType type{NodeType::Order}; // 1 byte
+  OrderType order_type;
 
-  char padding[6];
+  char padding[5];
 };
 
 static_assert(alignof(Order) == 64, "Order struct alignment is not 64 bytes");
