@@ -82,8 +82,11 @@ struct Orderbook {
   }
 
   const auto &bids() const noexcept { return mBidLevels; }
+
   const auto &asks() const noexcept { return mAskLevels; }
+
   std::string toString() const;
+
   size_t active_levels() const noexcept {
     return mBidLevels.size() + mAskLevels.size();
   }
@@ -96,6 +99,8 @@ struct Orderbook {
       total += lvl->size;
     return total;
   }
+
+  void dump_shape(const std::string &path, uint64_t bin_size) const;
 
 private:
   //   bids sorted ASC (best at index -1), asks sorted DESC (best at index

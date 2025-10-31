@@ -4,7 +4,7 @@ import math
 import csv
 from collections import defaultdict
 
-N = 10_000_000
+N = 10_000_001
 
 FAIR_PRICE = 100_000
 SPREAD_TICKS = 2

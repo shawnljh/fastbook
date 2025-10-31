@@ -1,13 +1,16 @@
 
+#include <fcntl.h>
 #include <iostream>
 #include <netinet/in.h>
 #include <order.h>
+#include <poll.h>
 #include <server.h>
 #include <spsc_queue.h>
+#include <thread>
 #include <types.h>
 #include <unistd.h>
 
-extern SPSCQueue<Client::Order, 1024> order_queue;
+extern SPSCQueue<Client::Order, 2048> order_queue;
 
 constexpr int PORT = 8080;
 
@@ -17,18 +20,32 @@ ssize_t read_exact(int fd, void *buffer, size_t bytes) {
 
   while (total_read < bytes) {
     ssize_t n = read(fd, buf + total_read, bytes - total_read);
-    if (n <= 0)
-      return n; // error or EOF
-    total_read += n;
-  }
 
+    if (n > 0) {
+      total_read += n;
+      continue;
+    }
+    if (n == 0) {
+      // client closed connection
+      return 0;
+    }
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      // no data available yet
+      return -2; // incomplete
+    }
+    return -1; // real error
+  }
   return total_read;
 }
 
-void start_tcp_server() {
+void start_tcp_server(std::atomic<bool> &stop_flag) {
   int server_fd, new_socket;
   struct sockaddr_in address;
   int opt = 1;
+
+  int enqueued = 0;
+  int not_queued = 0;
+
   socklen_t addrlen = sizeof(address);
 
   // Creating socket file descriptor
@@ -68,12 +85,33 @@ void start_tcp_server() {
     exit(EXIT_FAILURE);
   }
 
-  while (true) {
+  int flags = fcntl(new_socket, F_GETFL, 0);
+  if (flags == -1) {
+    perror("fcntl(F_GETFL)");
+    exit(EXIT_FAILURE);
+  }
+
+  if (fcntl(new_socket, F_SETFL, flags | O_NONBLOCK) == -1) {
+    perror("fcntl(F_SETFL)");
+    exit(EXIT_FAILURE);
+  }
+
+  while (!stop_flag.load()) {
+
     uint32_t length_prefix_net;
-    if (read_exact(new_socket, &length_prefix_net, sizeof(length_prefix_net)) !=
-        sizeof(length_prefix_net)) {
-      cout << "Client disconnected\n";
+    ssize_t n =
+        read_exact(new_socket, &length_prefix_net, sizeof(length_prefix_net));
+    if (n == 0) {
+      std::cout << "Client disconnected\n";
       break;
+    }
+    if (n == -1) {
+      perror("read error");
+      break;
+    }
+    if (n == -2) { // no data yet
+      std::this_thread::sleep_for(std::chrono::microseconds(50));
+      continue;
     }
 
     uint32_t payload_size = ntohl(length_prefix_net);
@@ -94,12 +132,19 @@ void start_tcp_server() {
       // "\n"; cout << "  Price: " << order.price << "\n"; cout << "  Quantity:
       // " << order.quantity << "\n";
       //
-      order_queue.enqueue(order);
+      if (order_queue.enqueue(order))
+        enqueued++;
+      else {
+        not_queued++;
+      }
 
     } catch (const std::exception &e) {
       cerr << "Parse error: " << e.what() << "\n";
     }
   }
+
+  cout << "Enqueued: " << enqueued << '\n';
+  cout << "Not queued: " << not_queued << '\n';
 
   // close the socket
   close(new_socket);

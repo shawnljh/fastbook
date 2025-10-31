@@ -1,3 +1,4 @@
 #pragma once
 
-void start_tcp_server();
+#include <atomic>
+void start_tcp_server(std::atomic<bool> &stop_flag);

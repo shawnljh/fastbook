@@ -2,7 +2,9 @@
 #include "server.h"
 #include "spsc_queue.h"
 #include "types.h"
+#include <atomic>
 #include <chrono>
+#include <csignal>
 #include <cstdint>
 #include <iostream>
 #include <orderbook.h>
@@ -10,17 +12,27 @@
 
 using namespace std;
 
-SPSCQueue<Client::Order, 1024> order_queue;
+SPSCQueue<Client::Order, 2048> order_queue;
 Orderbook book;
 uint64_t order_id = 1;
 
-void matching_loop() {
+std::atomic<bool> *p_stop_flag = nullptr;
+
+void handle_signal(int sig) {
+  if (p_stop_flag) {
+    std::cerr << "\n [Signal Caught] " << sig << ", shutting down.\n";
+    p_stop_flag->store(true);
+  }
+}
+
+void matching_loop(std::atomic<bool> &stop_flag) {
   uint64_t processed = 0;
   chrono::steady_clock::time_point start;
   bool started = false;
 
-  while (true) {
+  while (!stop_flag.load()) {
     auto maybe_order = order_queue.dequeue();
+
     if (!maybe_order) {
       std::this_thread::sleep_for(chrono::microseconds(500));
       continue;
@@ -48,6 +60,7 @@ void matching_loop() {
     }
 
     processed++;
+
     if (processed % 1'000'000 == 0) {
       auto now = chrono::steady_clock::now();
       double elapsed = chrono::duration<double>(now - start).count();
@@ -58,11 +71,19 @@ void matching_loop() {
                   book.active_levels(), book.resting_orders());
     }
   }
+
+  cout << "processed: " << processed << '\n';
 }
 
 int main() {
-  thread matcher(matching_loop);
-  start_tcp_server();
+  std::atomic<bool> stop_flag{false};
+  p_stop_flag = &stop_flag;
+
+  std::signal(SIGINT, handle_signal);
+  thread matcher(matching_loop, ref(stop_flag));
+  start_tcp_server(stop_flag);
   matcher.join();
+
+  std::cerr << "[Main] Graceful termination.\n";
   return 0;
 }

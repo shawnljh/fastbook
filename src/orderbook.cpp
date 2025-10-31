@@ -4,10 +4,12 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <sstream>
+#include <unordered_map>
 #include <utility>
 
 // Level methods
@@ -284,4 +286,36 @@ std::string Orderbook::toString() const {
 
   oss << "=================\n";
   return oss.str();
+}
+
+void Orderbook::dump_shape(const std::string &path, uint64_t bin_size) const {
+  if (mBidLevels.empty() || mAskLevels.empty()) {
+    return;
+  }
+
+  uint64_t best_bid = mBidLevels.back().get()->price;
+  uint64_t best_ask = mAskLevels.back().get()->price;
+
+  double mid = (best_bid + best_ask) / 2.0;
+
+  std::unordered_map<uint64_t, std::pair<uint64_t, uint64_t>> bins;
+
+  for (auto &it : mBidLevels) {
+    auto lvl = it.get();
+    int64_t dist = static_cast<int64_t>((lvl->price - mid) / bin_size);
+    bins[dist].first += lvl->volume;
+  }
+
+  for (auto &it : mAskLevels) {
+    auto lvl = it.get();
+    int64_t dist = static_cast<int64_t>((lvl->price - mid) / bin_size);
+    bins[dist].first += lvl->volume;
+  }
+
+  std::ofstream out(path);
+  out << "delta_ticks,bid_qty,ask_qty\n";
+  for (auto &[dist, qtys] : bins) {
+    out << dist * (int64_t)bin_size << "," << qtys.first << ',' << qtys.second
+        << '\n';
+  }
 }
