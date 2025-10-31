@@ -1,6 +1,7 @@
 #include "order.h"
 #include "server.h"
 #include "spsc_queue.h"
+#include "types.h"
 #include <chrono>
 #include <cstdint>
 #include <iostream>
@@ -25,6 +26,9 @@ void matching_loop() {
       continue;
     }
 
+    ScopedTimer t(book.telemetry_);
+    book.telemetry_.record_order();
+
     if (!started) {
       started = true;
       start = chrono::steady_clock::now();
@@ -32,8 +36,16 @@ void matching_loop() {
 
     const auto &order = *maybe_order;
     bool is_buy = (order.side == Side::Bid);
-    book.addOrder(order_id++, order.price, order.quantity, is_buy,
-                  order.account_id);
+
+    if (order.order_type == OrderType::Limit) {
+      book.addOrder(order_id++, order.price, order.quantity, is_buy,
+                    order.account_id);
+    } else if (order.order_type == OrderType::Market) {
+
+      book.matchMarketOrder(is_buy, order.quantity);
+    } else {
+      book.removeOrder(order.order_id);
+    }
 
     processed++;
     if (processed % 1'000'000 == 0) {
@@ -42,6 +54,8 @@ void matching_loop() {
       std::cout << processed << " processed in " << elapsed << "s ("
                 << processed / elapsed << " orders/sec)" << "\n";
       book.telemetry_.dump(elapsed);
+      std::printf("active_levels=%zu resting_orders=%zu\n",
+                  book.active_levels(), book.resting_orders());
     }
   }
 }

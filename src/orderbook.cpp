@@ -50,8 +50,6 @@ std::string Level::toString() const {
 
 void Orderbook::addOrder(uint64_t orderId, Price price, uint64_t quantity,
                          bool is_buy, uint64_t account_id) {
-  ScopedTimer t(telemetry_);
-  telemetry_.record_order();
   Matching::Order *order =
       orderpool_.allocate(orderId, quantity, is_buy, account_id);
 
@@ -165,11 +163,13 @@ uint64_t Orderbook::matchMarketOrder(bool is_buy, uint64_t quantity) {
 }
 
 void Orderbook::removeOrder(uint64_t order_id) {
-  telemetry_.record_cancel();
   auto *order = orderpool_.find(order_id);
-  if (order == nullptr)
+  if (order == nullptr) {
+    telemetry_.record_stale_cancel();
     return;
+  }
 
+  telemetry_.record_cancel();
   Level *level = order->level;
   level->pop(order);
   Side side = order->side;

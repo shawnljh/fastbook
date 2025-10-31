@@ -6,16 +6,17 @@
 #include <vector>
 
 namespace Client {
-struct alignas(32) Order {
+struct alignas(64) Order {
   uint64_t price;
   uint64_t quantity;
   uint64_t account_id;
+  uint64_t order_id; // for testing
   Side side;
   OrderType order_type;
   char padding[6];
 };
-static_assert(sizeof(Order) == 32, "Client::Order size is not 32 bytes");
-static_assert(alignof(Order) == 32, "Client::Order alignment is not 32 bytes");
+static_assert(sizeof(Order) == 64, "Client::Order size is not 32 bytes");
+static_assert(alignof(Order) == 64, "Client::Order alignment is not 32 bytes");
 
 // Parses an Order from a binary payload
 Order parse_order(const std::vector<uint8_t> &payload);

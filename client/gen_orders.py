@@ -2,9 +2,7 @@ import struct
 import random
 import math
 import csv
-
-SEED = 42
-random.seed(SEED)
+from collections import defaultdict
 
 N = 10_000_000
 
@@ -19,10 +17,20 @@ BUY_RATIO = 0.52           # slight imbalance
 PRICE_DECAY = 0.003        # exponential lambda for |Δprice|
 LOGNORM_MU = math.log(8)   # median ~8
 LOGNORM_SIGMA = 1.0        # heavy tail
+FAR_THRESHOLD = 50        # ticks
+
+ORDER_LIMIT = 0
+ORDER_MARKET = 1
+ORDER_CANCEL = 2
+
+P_LIMIT = 0.6
+P_MARKET = 0.10
+P_CANCEL = 0.3
 
 pack = struct.pack
-BIN_PATH = "client/orders.bin"
-CSV_PATH = "client/orders.csv"
+
+far_pool = defaultdict(list)
+near_pool = defaultdict(list)
 
 
 def sample_price_around_mid(mid: int) -> int:
@@ -39,28 +47,95 @@ def sample_quantity() -> int:
     return max(1, int(round(q)))
 
 
+def choose_event(has_live):
+    r = random.random()
+    if not has_live:
+        return ORDER_LIMIT if r < P_LIMIT/(P_LIMIT + P_MARKET) else ORDER_MARKET
+    if r < P_LIMIT:
+        return ORDER_LIMIT
+    elif r < P_LIMIT + P_MARKET:
+        return ORDER_MARKET
+    else:
+        return ORDER_CANCEL
+
+
 def sample_account_id() -> int:
     return random.randint(1, ACCOUNT_ID_MAX)
 
 
-mid = FAIR_PRICE
-with open(BIN_PATH, "wb") as fbin, open(CSV_PATH, "w", newline="") as fcsv:
-    w = csv.writer(fcsv)
-    w.writerow(["side", "price", "quantity"])
+def generate_orders(bin_path, csv_path):
+    live_ids = set()
+    next_id = 1
+    mid = FAIR_PRICE
 
-    for _ in range(N):
-        # small random drift of midprice
-        mid += random.choice([-1, 0, 1]) * random.randint(0, 1)
+    with open(bin_path, "wb") as fbin, open(csv_path, "w", newline="") as fcsv:
+        w = csv.writer(fcsv)
+        w.writerow(["type", "side", "price", "quantity", "acct", "order_id"])
 
-        side = 0 if random.random() < BUY_RATIO else 1
-        price = sample_price_around_mid(mid)
-        qty = sample_quantity()
-        account_id = sample_account_id()
+        for _ in range(N):
+            # small random drift of midprice
+            mid += random.choice([-1, 0, 1]) * random.randint(0, 1)
 
-        payload = pack(">BQQQ", side, price, qty, account_id)
-        msg = pack(">I", len(payload)) + payload
-        fbin.write(msg)
-        w.writerow([side, price, qty])
+            has_live = bool(live_ids)
+            evt = choose_event(has_live)
+
+            if evt == ORDER_LIMIT:
+                side = 0 if random.random() < BUY_RATIO else 1
+                price = sample_price_around_mid(mid)
+                qty = sample_quantity()
+                oid = next_id
+                account_id = sample_account_id()
+                next_id += 1
+                live_ids.add(oid)
+                delta = abs(price - mid)
+                if delta > FAR_THRESHOLD:
+                    far_pool[price].append(oid)
+                else:
+                    near_pool[price].append(oid)
+
+            elif evt == ORDER_MARKET:
+                side = 0 if random.random() < BUY_RATIO else 1
+                price = 0
+                qty = sample_quantity()
+                account_id = sample_account_id()
+                oid = next_id
+                next_id += 1
+
+            else:
+                # Order cancel
+                if not (far_pool or near_pool):
+                    evt = ORDER_LIMIT
+                    side = 0 if random.random() < BUY_RATIO else 1
+                    price = sample_price_around_mid(mid)
+                    qty = sample_quantity()
+                    account_id = sample_account_id()
+                    oid = next_id
+                    next_id += 1
+                    live_ids.add(oid)
+                    delta = abs(price - mid)
+                    if delta > FAR_THRESHOLD:
+                        far_pool[price].append(oid)
+                    else:
+                        near_pool[price].append(oid)
+
+                else:
+                    use_far = random.random() < 0.8
+                    pool = far_pool if (use_far and far_pool) else near_pool
+                    price = random.choice(list(pool.keys()))
+                    oid = pool[price].pop()
+                    if not pool[price]:
+                        del pool[price]
+                    if oid in live_ids:
+                        live_ids.remove(oid)
+                    side, price, qty = 0, 0, 0
+
+            payload = pack(">BBQQQQ", evt, side, price, qty, account_id, oid)
+            msg = pack(">I", len(payload)) + payload
+            fbin.write(msg)
+            w.writerow([evt, side, price, qty, account_id, oid])
 
 
-print(f"Generated {N:,} orders around mid={FAIR_PRICE}")
+if __name__ == "__main__":
+    random.seed(43)
+    generate_orders("client/orders.bin", "client/orders.csv")
+    print(f"Generated {N:,} orders around mid={FAIR_PRICE}")

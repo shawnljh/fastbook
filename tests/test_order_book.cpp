@@ -1,4 +1,5 @@
 #include "orderbook.h"
+#include "gtest/gtest.h"
 #include <gtest/gtest.h>
 #include <vector>
 
@@ -170,6 +171,8 @@ TEST_F(OrderBookTest, CancelNonexistentOrderSafe) {
   book.addOrder(1, 100, 5, true, 1);
   EXPECT_NO_THROW(book.removeOrder(9999));
   EXPECT_EQ(book.bids().size(), 1);
+  book.removeOrder(1);
+  EXPECT_NO_THROW(book.removeOrder(1));
 }
 
 TEST_F(OrderBookTest, TelemetryTracksCounts) {

@@ -23,26 +23,35 @@ uint64_t Client::swap_uint64(uint64_t val) {
 }
 
 Client::Order Client::parse_order(const std::vector<uint8_t> &payload) {
-  if (payload.size() != 26) {
-    // 1 + 8 + 8 + 8 + 1 Bytes
-    throw std::runtime_error("Invalid payload size for Order");
+  if (payload.size() != 34) {
+    // 1 + 1 + 8 + 8 + 8 Bytes
+
+    std::string error_msg =
+        "Invalid payload size for Order, expected: " + std::to_string(34) +
+        ", was: " + std::to_string(payload.size());
+    throw std::runtime_error(error_msg);
   }
 
   Client::Order order;
-  order.side = static_cast<Side>(payload[0]);
+
+  order.order_type = static_cast<OrderType>(payload[0]);
+  order.side = static_cast<Side>(payload[1]);
   uint64_t price_net;
-  std::memcpy(&price_net, &payload[1], sizeof(price_net));
+  std::memcpy(&price_net, &payload[2], sizeof(price_net));
   order.price = Client::swap_uint64(price_net);
 
   uint64_t qty_net;
-  std::memcpy(&qty_net, &payload[9], sizeof(qty_net));
+  std::memcpy(&qty_net, &payload[10], sizeof(qty_net));
   order.quantity = Client::swap_uint64(qty_net);
 
   uint64_t account_id_net;
-  std::memcpy(&account_id_net, &payload[17], sizeof(account_id_net));
+  std::memcpy(&account_id_net, &payload[18], sizeof(account_id_net));
   order.account_id = Client::swap_uint64(account_id_net);
 
-  order.order_type = static_cast<OrderType>(payload[25]); // <-- new byte
+  // we only use this for cancel for now
+  uint64_t order_id_net;
+  std::memcpy(&order_id_net, &payload[26], sizeof(order_id_net));
+  order.order_id = Client::swap_uint64(order_id_net);
 
   return order;
 }

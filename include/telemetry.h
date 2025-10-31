@@ -10,6 +10,7 @@ struct Telemetry {
   std::atomic<uint64_t> total_orders{0};
   std::atomic<uint64_t> matched_orders{0};
   std::atomic<uint64_t> cancelled_orders{0};
+  std::atomic<uint64_t> stale_cancels{0};
   std::atomic<uint64_t> total_latency_ns{0};
 
   std::atomic<uint64_t> total_allocs{0};
@@ -30,6 +31,10 @@ struct Telemetry {
 
   void record_cancel() noexcept {
     cancelled_orders.fetch_add(1, std::memory_order_relaxed);
+  }
+
+  void record_stale_cancel() noexcept {
+    stale_cancels.fetch_add(1, std::memory_order_relaxed);
   }
 
   void record_alloc(bool reused) {
@@ -87,8 +92,9 @@ struct Telemetry {
   void dump(double elapsed_s) const noexcept {
     double throughput = total_orders.load() / elapsed_s;
     std::printf("[FastBook Telemetry]\n");
-    std::printf("orders=%lu matched=%lu cancelled=%lu\n", total_orders.load(),
-                matched_orders.load(), cancelled_orders.load());
+    std::printf("orders=%lu matched=%lu cancelled=%lu stale cancels=%lu\n",
+                total_orders.load(), matched_orders.load(),
+                cancelled_orders.load(), stale_cancels.load());
     std::printf("avg_latency=%.2f ns", avg_latency_ns());
     std::printf("throughput=%.2f ops/s\n", throughput);
     std::printf("allocations=%lu reused=%.2f%%\n", total_allocs.load(),

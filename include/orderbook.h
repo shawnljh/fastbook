@@ -84,6 +84,18 @@ struct Orderbook {
   const auto &bids() const noexcept { return mBidLevels; }
   const auto &asks() const noexcept { return mAskLevels; }
   std::string toString() const;
+  size_t active_levels() const noexcept {
+    return mBidLevels.size() + mAskLevels.size();
+  }
+
+  size_t resting_orders() const noexcept {
+    size_t total = 0;
+    for (auto &lvl : mAskLevels)
+      total += lvl->size;
+    for (auto &lvl : mAskLevels)
+      total += lvl->size;
+    return total;
+  }
 
 private:
   //   bids sorted ASC (best at index -1), asks sorted DESC (best at index
