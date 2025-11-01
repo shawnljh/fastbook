@@ -10,7 +10,7 @@ struct alignas(64) Order {
   uint64_t price;
   uint64_t quantity;
   uint64_t account_id;
-  uint64_t order_id; // for testing
+  uint64_t order_id; // TODO: for testing
   Side side;
   OrderType order_type;
   char padding[6];

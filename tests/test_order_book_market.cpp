@@ -42,7 +42,7 @@ TEST_F(OrderBookMarketTest, MarketOrderPartialFill) {
   uint64_t remaining = book.matchMarketOrder(false, 70);
 
   // Should consume all available bids (60)
-  EXPECT_GT(remaining, 10);
+  EXPECT_EQ(remaining, 10);
   EXPECT_EQ(book.bids().size(), 0); // all asks consumed
   EXPECT_EQ(book.asks().size(), 2); // unchanged
 }

@@ -101,6 +101,7 @@ void start_tcp_server(std::atomic<bool> &stop_flag) {
     uint32_t length_prefix_net;
     ssize_t n =
         read_exact(new_socket, &length_prefix_net, sizeof(length_prefix_net));
+
     if (n == 0) {
       std::cout << "Client disconnected\n";
       break;
