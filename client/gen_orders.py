@@ -74,7 +74,7 @@ def generate_orders(bin_path, csv_path):
 
         for _ in range(N):
             # small random drift of midprice
-            mid += random.choice([-1, 0, 1]) * random.randint(0, 1)
+            # mid += random.choice([-1, 0, 1]) * random.randint(0, 1)
 
             has_live = bool(live_ids)
             evt = choose_event(has_live)
@@ -103,7 +103,7 @@ def generate_orders(bin_path, csv_path):
 
             else:
                 # Order cancel
-                if not (far_pool or near_pool):
+                if not far_pool and not near_pool:
                     evt = ORDER_LIMIT
                     side = 0 if random.random() < BUY_RATIO else 1
                     price = sample_price_around_mid(mid)
@@ -119,23 +119,28 @@ def generate_orders(bin_path, csv_path):
                         near_pool[price].append(oid)
 
                 else:
+                    evt = ORDER_CANCEL
                     use_far = random.random() < 0.8
-                    pool = far_pool if (use_far and far_pool) else near_pool
+                    if (use_far or not near_pool):
+                        pool = far_pool
+                    else:
+                        pool = near_pool
                     price = random.choice(list(pool.keys()))
                     oid = pool[price].pop()
                     if not pool[price]:
                         del pool[price]
                     if oid in live_ids:
                         live_ids.remove(oid)
-                    side, price, qty = 0, 0, 0
+                    side, price, qty, account_id = 0, 0, 0, 0
 
-            payload = pack(">BBQQQQ", evt, side, price, qty, account_id, oid)
+            payload = pack(">BBQQQQ", evt, side,
+                           price, qty, account_id, oid)
             msg = pack(">I", len(payload)) + payload
             fbin.write(msg)
             w.writerow([evt, side, price, qty, account_id, oid])
 
 
 if __name__ == "__main__":
-    random.seed(43)
+    random.seed(42)
     generate_orders("client/orders.bin", "client/orders.csv")
     print(f"Generated {N:,} orders around mid={FAIR_PRICE}")

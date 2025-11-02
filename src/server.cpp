@@ -10,7 +10,7 @@
 #include <types.h>
 #include <unistd.h>
 
-extern SPSCQueue<Client::Order, 32768> order_queue;
+extern SPSCQueue<Client::Order, 65536> order_queue;
 
 constexpr int PORT = 8080;
 

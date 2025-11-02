@@ -12,7 +12,7 @@
 
 using namespace std;
 
-SPSCQueue<Client::Order, 32768> order_queue;
+SPSCQueue<Client::Order, 65536> order_queue;
 Orderbook book;
 uint64_t order_id = 1;
 
@@ -72,6 +72,7 @@ void matching_loop(std::atomic<bool> &stop_flag) {
     }
   }
 
+  book.dump_shape("final_shape.csv", 10);
   cout << "processed: " << processed << '\n';
 }
 

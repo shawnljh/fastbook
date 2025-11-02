@@ -298,24 +298,30 @@ void Orderbook::dump_shape(const std::string &path, uint64_t bin_size) const {
 
   double mid = (best_bid + best_ask) / 2.0;
 
-  std::unordered_map<uint64_t, std::pair<uint64_t, uint64_t>> bins;
+  std::unordered_map<int64_t, std::pair<uint64_t, uint64_t>> bins;
 
   for (auto &it : mBidLevels) {
     auto lvl = it.get();
-    int64_t dist = static_cast<int64_t>((lvl->price - mid) / bin_size);
+    int64_t dist = static_cast<int64_t>((mid - lvl->price) / bin_size);
     bins[dist].first += lvl->volume;
   }
 
   for (auto &it : mAskLevels) {
     auto lvl = it.get();
     int64_t dist = static_cast<int64_t>((lvl->price - mid) / bin_size);
-    bins[dist].first += lvl->volume;
+    bins[dist].second += lvl->volume;
   }
+
+  std::vector<int64_t> keys;
+  keys.reserve(bins.size());
+  for (const auto &[k, _] : bins)
+    keys.push_back(k);
+  std::sort(keys.begin(), keys.end());
 
   std::ofstream out(path);
   out << "delta_ticks,bid_qty,ask_qty\n";
-  for (auto &[dist, qtys] : bins) {
-    out << dist * (int64_t)bin_size << "," << qtys.first << ',' << qtys.second
-        << '\n';
+  for (auto k : keys) {
+    auto [bq, aq] = bins[k];
+    out << k * static_cast<int64_t>(bin_size) << "," << bq << "," << aq << "\n";
   }
 }
