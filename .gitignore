@@ -49,8 +49,7 @@ build-profile/
 # ignore generated order data
 /client/orders.bin
 /client/orders.csv
-out.folded
-out.perf
+out/
 perf.data
 
 *.ipynb_checkpoints

@@ -12,7 +12,7 @@
 
 using namespace std;
 
-SPSCQueue<Client::Order, 65536> order_queue;
+SPSCQueue<Client::Order, 262144> order_queue;
 Orderbook book;
 uint64_t order_id = 1;
 

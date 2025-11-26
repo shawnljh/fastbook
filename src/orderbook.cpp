@@ -302,7 +302,7 @@ void Orderbook::dump_shape(const std::string &path, uint64_t bin_size) const {
 
   for (auto &it : mBidLevels) {
     auto lvl = it.get();
-    int64_t dist = static_cast<int64_t>((mid - lvl->price) / bin_size);
+    int64_t dist = -static_cast<int64_t>((mid - lvl->price) / bin_size);
     bins[dist].first += lvl->volume;
   }
 
