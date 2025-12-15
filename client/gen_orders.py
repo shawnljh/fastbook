@@ -66,11 +66,12 @@ def sample_account_id() -> int:
 def generate_orders(bin_path, csv_path):
     live_ids = set()
     next_id = 1
+    i = 0
     mid = FAIR_PRICE
 
     with open(bin_path, "wb") as fbin, open(csv_path, "w", newline="") as fcsv:
         w = csv.writer(fcsv)
-        w.writerow(["type", "side", "price", "quantity", "acct", "order_id"])
+        w.writerow(["side", "type", "acct", "price", "quantity", "order_id"])
 
         for _ in range(N):
             # small random drift of midprice
@@ -133,11 +134,13 @@ def generate_orders(bin_path, csv_path):
                         live_ids.remove(oid)
                     side, price, qty, account_id = 0, 0, 0, 0
 
-            payload = pack(">BBQQQQ", evt, side,
-                           price, qty, account_id, oid)
-            msg = pack(">I", len(payload)) + payload
-            fbin.write(msg)
-            w.writerow([evt, side, price, qty, account_id, oid])
+            payload = pack("<BBxxLQQQ", side, evt,
+                           account_id, price, qty, oid)
+            fbin.write(payload)
+            w.writerow([side, evt, account_id, price, qty, oid])
+            if i < 5:
+                print(side, evt, account_id, price, qty, oid)
+            i = i + 1
 
 
 if __name__ == "__main__":

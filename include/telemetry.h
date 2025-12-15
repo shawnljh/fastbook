@@ -95,7 +95,8 @@ struct Telemetry {
     std::printf("orders=%lu matched=%lu cancelled=%lu stale cancels=%lu\n",
                 total_orders.load(), matched_orders.load(),
                 cancelled_orders.load(), stale_cancels.load());
-    std::printf("avg_latency=%.2f ns", avg_latency_ns());
+    std::printf("avg_latency=%.2f ns, total_latency= %lu ns\n",
+                avg_latency_ns(), total_latency_ns.load());
     std::printf("throughput=%.2f ops/s\n", throughput);
     std::printf("allocations=%lu reused=%.2f%%\n", total_allocs.load(),
                 reuse_ratio());

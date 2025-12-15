@@ -6,12 +6,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_CXX_FLAG_PROFILE "-O3 -g -pg -march=native")
-set(CMAKE_EXE_LINKER_FLAGS_PROFILE "-pg")
-
-if(CMAKE_BUILD_TYPE STREQUAL "Profile")
-    add_compile_options(-O3 -g -pg -march=native)
+if (NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "" FORCE)
 endif()
+
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -march=native -fno-omit-frame-pointer")
+
 
 # Enable warnings
 add_compile_options(-Wall -Wextra -Wpedantic -O2)

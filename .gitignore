@@ -42,7 +42,8 @@
 
 .vscode/
 build/
-build-profile/
+build-prof/
+build-release/
 
 .cache/
 

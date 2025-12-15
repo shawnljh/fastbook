@@ -149,58 +149,37 @@ void start_tcp_server(std::atomic<bool> &stop_flag) {
       t0 = chrono::steady_clock::now();
     }
 
-    uint32_t length_prefix_net;
-    ssize_t n = read_exact(new_socket, &length_prefix_net,
-                           sizeof(length_prefix_net), stop_flag);
+    Client::Order order;
+    ssize_t n = read_exact(new_socket, &order, sizeof(order), stop_flag);
 
     if (n == 0) {
       std::cout << "Client disconnected\n";
       break;
     }
-    if (n == -1) {
-      perror("read error");
-      break;
-    }
-    if (n == -3) {
-      // Sigint
-      break;
+    if (n != sizeof(order)) {
+      std::cerr << "read error or short read";
     }
 
-    uint32_t payload_size = ntohl(length_prefix_net);
-    std::vector<unsigned char> payload(payload_size);
+    // cout << "Payload size: " << payload_size << "\n";
 
-    if (read_exact(new_socket, payload.data(), payload_size, stop_flag) !=
-        payload_size) {
-      cout << "Failed to read payload\n";
-      break;
-    }
+    // cout << "Order Parsed:\n";
+    // cout << "  Side: " << (order.side == Side::Bid ? "Bid" : "Ask") <<
+    // "\n"; cout << "  Price: " << order.price << "\n"; cout << "  Quantity:
+    // " << order.quantity << "\n";
+    //
 
-    try {
-      // cout << "Payload size: " << payload_size << "\n";
-
-      Client::Order order = Client::parse_order(payload);
-
-      // cout << "Order Parsed:\n";
-      // cout << "  Side: " << (order.side == Side::Bid ? "Bid" : "Ask") <<
-      // "\n"; cout << "  Price: " << order.price << "\n"; cout << "  Quantity:
-      // " << order.quantity << "\n";
-      //
-      if (order_queue.enqueue(order)) {
-        enqueued++;
-        if (!started) {
-          started = true;
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-        uint64_t ns =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
-                .count();
-        ingress_tel.record_latency(ns);
-      } else {
-        not_queued++;
+    if (order_queue.enqueue(order)) {
+      enqueued++;
+      if (!started) {
+        started = true;
       }
-
-    } catch (const std::exception &e) {
-      cerr << "Parse error: " << e.what() << "\n";
+      auto end = std::chrono::high_resolution_clock::now();
+      uint64_t ns =
+          std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
+              .count();
+      ingress_tel.record_latency(ns);
+    } else {
+      not_queued++;
     }
   }
 

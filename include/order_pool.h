@@ -61,7 +61,7 @@ private:
   }
 
 public:
-  explicit OrderPool(Telemetry &telemetry, size_t slab_size = 1 << 16) // 65536
+  explicit OrderPool(Telemetry &telemetry, size_t slab_size = 1 << 17) // 131072
       : telemetry_(telemetry), slab_size_(slab_size), next_index_(0) {
     assert((slab_size & (slab_size - 1)) == 0 &&
            "Slab size should be power of 2");
