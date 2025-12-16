@@ -93,7 +93,7 @@ struct Orderbook {
 
   size_t resting_orders() const noexcept {
     size_t total = 0;
-    for (auto &lvl : mAskLevels)
+    for (auto &lvl : mBidLevels)
       total += lvl->size;
     for (auto &lvl : mAskLevels)
       total += lvl->size;

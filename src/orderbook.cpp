@@ -23,6 +23,7 @@ void Level::push_back(Matching::Order *o) {
   volume += o->quantity_remaining;
 };
 
+// Pops order from level and decrements level size
 void Level::pop(Matching::Order *o) {
   assert(o->type == Matching::NodeType::Order);
   o->prev->next = o->next;
@@ -54,6 +55,11 @@ void Orderbook::addOrder(uint64_t orderId, Price price, uint64_t quantity,
                          bool is_buy, uint64_t account_id) {
   Matching::Order *order =
       orderpool_.allocate(orderId, quantity, is_buy, account_id);
+
+  if (order == nullptr) [[unlikely]] {
+    telemetry_.record_rejected();
+    return;
+  }
 
   uint64_t quantity_remaining = matchLimitOrder(order, price);
   order->quantity_remaining = quantity_remaining;
@@ -165,7 +171,7 @@ uint64_t Orderbook::matchMarketOrder(bool is_buy, uint64_t quantity) {
 }
 
 void Orderbook::removeOrder(uint64_t order_id) {
-  auto *order = orderpool_.find(order_id);
+  auto *order = orderpool_.find_and_deallocate(order_id);
   if (order == nullptr) {
     telemetry_.record_stale_cancel();
     return;
@@ -175,7 +181,6 @@ void Orderbook::removeOrder(uint64_t order_id) {
   Level *level = order->level;
   level->pop(order);
   Side side = order->side;
-  orderpool_.deallocate(order_id);
 
   if (level->size > 0)
     return;
@@ -244,7 +249,7 @@ std::string Orderbook::toString() const {
 
   oss << "=== ORDERBOOK ===\n";
 
-  // --- Asks (print best last, since stored descending) ---
+  // Asks (print best last, since stored descending)
   oss << "[ASKS]\n";
   if (mAskLevels.empty()) {
     oss << "  <empty>\n";
@@ -264,7 +269,7 @@ std::string Orderbook::toString() const {
     }
   }
 
-  // --- Bids (stored ascending) ---
+  // Bids (stored ascending)
   oss << "[BIDS]\n";
   if (mBidLevels.empty()) {
     oss << "  <empty>\n";

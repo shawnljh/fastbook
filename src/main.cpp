@@ -71,7 +71,11 @@ void matching_loop(std::atomic<bool> &stop_flag) {
                   book.active_levels(), book.resting_orders());
     }
   }
-
+  auto now = chrono::steady_clock::now();
+  double elapsed = chrono::duration<double>(now - start).count();
+  std::cout << processed << " processed in " << elapsed << "s ("
+            << processed / elapsed << " orders/sec)" << "\n";
+  book.telemetry_.dump(elapsed);
   book.dump_shape("final_shape.csv", 10);
   cout << "processed: " << processed << '\n';
 }
