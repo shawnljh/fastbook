@@ -38,6 +38,7 @@ target_link_libraries(fastbook PRIVATE fastbook_lib)
 
 add_executable(tests
     tests/main_test.cpp
+    tests/test_bitset.cpp
     tests/test_order.cpp
     tests/test_order_pool.cpp
     tests/test_order_book.cpp
