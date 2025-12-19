@@ -93,5 +93,5 @@ The engine dumps telemetry to `stdout` every 1M orders and generates a shape sna
 
 ## Roadmap
 
-* **Level Container Optimization:** Refactor the `Orderbook` to use intrusive lists for managing Price Levels (replacing `std::vector<Level>`). This will eliminate the $O(N)$ overhead of shifting vector elements during order deletion.
+* **Level Container Optimization:** Refactor the `Orderbook` to use hierarchy bitset (for hot levels) + (map for cold levels) for managing Price Levels (replacing `std::vector<Level>`). This will eliminate the $O(N)$ overhead of shifting vector elements during order deletion. 
 * **Ingestion Optimization:** Implement batch reading for network sockets (e.g., `recvmmsg`) to amortize syscall overhead across multiple messages.
