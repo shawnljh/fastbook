@@ -1,6 +1,6 @@
 # Fastbook
 
-**Fastbook** is a single-threaded, high-frequency limit order book (LOB) engine written in C++20. It prioritizes mechanical sympathy, cache locality, and zero-allocation on the hot path.
+**Fastbook** is an exploratory single-threaded, high-frequency limit order book (LOB) engine written in C++20. It prioritizes mechanical sympathy and cache locality.
 
 > **Current Branch:** `feature/open-addressing-pool`
 >
