@@ -21,14 +21,19 @@ Benchmarks run on `10,000,000` orders replay (reused ~12.5% of slots).
 ## The Performance Journey
 Building this engine has been an ongoing exercise in profiling, identifying, and systematically eliminating bottlenecks.
 
-* **Baseline (~900k ops/sec):** The initial naive implementation using standard blocking I/O and per-message reads.
-* **Zero-Copy Ingestion (~1.76M ops/sec):** Transitioned the server to use non-blocking sockets (`O_NONBLOCK`) and eliminated deserialization overhead by casting raw network byte buffers directly into `Client::Order` structs.
-* **Syscall Amortization (~5.7M ops/sec):** Flamegraph profiling revealed the system was bottlenecked by the kernel context switch (`entry_SYSCALL_64_after_hwframe`) on every read. Implemented a 64KB user-space buffer to amortize `read()` syscalls, paired with `_mm_pause()` spin-waits for polling.
-
+* **Baseline (~900k orders/sec):** The initial naive implementation using standard blocking I/O and per-message reads.
+* **Zero-Copy Ingestion (~1.76M orders/sec):** Transitioned the server to use non-blocking sockets (`O_NONBLOCK`) and eliminated deserialization overhead by casting raw network byte buffers directly into `Client::Order` structs.
+   <p align="center">
+  <img src="assets/flamegraph.svg" width="600" alt="Fastbook zero-copy Flamegraph">
+   </p>
+* **Syscall Amortization (~5.7M orders/sec):** Flamegraph profiling revealed the system was bottlenecked by the kernel context switch (`entry_SYSCALL_64_after_hwframe`) on every read. Implemented a 64KB user-space buffer to amortize `read()` syscalls, paired with `_mm_pause()` spin-waits for polling.
+   <p align="center">
+  <img src="assets/socketbuffer_flamegraph.svg" width="600" alt="Fastbook socketbuffer Flamegraph">
+   </p>
 
 ## Key Engineering Features
 
-### 1. Memory Architecture (`OrderPool`)
+### 1. Memory Architecture (`OrderPool`) *(WIP: `feature/open-addressing-pool`)*
 The engine avoids `malloc`/`free` using a custom memory pool.
 
 * **Slab Allocation:** Orders are allocated from pre-reserved contiguous memory blocks ("slabs") to ensure spatial locality.
@@ -101,4 +106,4 @@ The engine dumps telemetry to `stdout` every 1M orders and generates a shape sna
 
 * **Level Container Optimization:** Refactor the `Orderbook` to use hierarchy bitset (for hot levels) + (map for cold levels) for managing Price Levels (replacing `std::vector<Level>`). This will eliminate the $O(N)$ overhead of shifting vector elements during order deletion. 
 
-Kernel Bypass / Advanced I/O: Evolve the user-space buffering system to use `recvmmsg` or `io_uring` to further push the boundaries of network ingestion.
+* **Kernel Bypass / Advanced I/O:** Evolve the user-space buffering system to use `recvmmsg` or `io_uring` to further push the boundaries of network ingestion.
