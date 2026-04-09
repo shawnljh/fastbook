@@ -23,7 +23,7 @@ Building this engine has been an ongoing exercise in profiling, identifying, and
 
 * **Baseline (~900k ops/sec):** The initial naive implementation using standard blocking I/O and per-message reads.
 * **Zero-Copy Ingestion (~1.76M ops/sec):** Transitioned the server to use non-blocking sockets (`O_NONBLOCK`) and eliminated deserialization overhead by casting raw network byte buffers directly into `Client::Order` structs.
-* ** Syscall Amortization (~5.7M ops/sec):** Flamegraph profiling revealed the system was bottlenecked by the kernel context switch (`entry_SYSCALL_64_after_hwframe`) on every read. Implemented a 64KB user-space buffer to amortize `read()` syscalls, paired with `_mm_pause()` spin-waits for polling.
+* **Syscall Amortization (~5.7M ops/sec):** Flamegraph profiling revealed the system was bottlenecked by the kernel context switch (`entry_SYSCALL_64_after_hwframe`) on every read. Implemented a 64KB user-space buffer to amortize `read()` syscalls, paired with `_mm_pause()` spin-waits for polling.
 
 
 ## Key Engineering Features
@@ -101,4 +101,4 @@ The engine dumps telemetry to `stdout` every 1M orders and generates a shape sna
 
 * **Level Container Optimization:** Refactor the `Orderbook` to use hierarchy bitset (for hot levels) + (map for cold levels) for managing Price Levels (replacing `std::vector<Level>`). This will eliminate the $O(N)$ overhead of shifting vector elements during order deletion. 
 
-Kernel Bypass / Advanced I/O: Evolve the user-space buffering system to use recvmmsg or io_uring to further push the boundaries of network ingestion.
+Kernel Bypass / Advanced I/O: Evolve the user-space buffering system to use `recvmmsg` or `io_uring` to further push the boundaries of network ingestion.
