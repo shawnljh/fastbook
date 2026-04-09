@@ -2,9 +2,7 @@
 
 **Fastbook** is an exploratory single-threaded, high-frequency limit order book (LOB) engine written in C++20. It prioritizes mechanical sympathy and cache locality.
 
-> **Current Branch:** `feature/open-addressing-pool`
->
-> This branch replaces the standard library node-based containers with a custom open-addressing hash map and slab allocator to minimize cache misses and memory fragmentation.
+Motivation: This project is a dedicated testbed for strengthening mechanical sympathy through the hands-on application of low-latency C++ concepts, built specifically to tackle and explore the rigorous engineering constraints found in High-Frequency Trading (HFT) environments.
 
 ## Performance Benchmarks
 
@@ -12,13 +10,21 @@ Benchmarks run on `10,000,000` orders replay (reused ~12.5% of slots).
 
 | Metric | Result |
 | :--- | :--- |
-| **Throughput** | **~1.67 Million orders/sec** |
-| **Avg Latency** | **~375 ns** |
-| **p50 Latency** | **50 ns** |
-| **p99 Latency** | **425 ns** |
-| **p99.9 Latency** | **23.5 μs** |
+| **Throughput** | **~5.73 Million orders/sec** |
+| **Avg Latency** | **~141 ns** |
+| **p50 Latency** | **75 ns** |
+| **p99 Latency** | **525 ns** |
+| **p99.9 Latency** | **2000 ns** |
 
 *Note: Latency measures the time from dequeuing an order to completing the match/insert operation. Network IO is excluded from engine latency metrics.*
+
+## The Performance Journey
+Building this engine has been an ongoing exercise in profiling, identifying, and systematically eliminating bottlenecks.
+
+* **Baseline (~900k ops/sec):** The initial naive implementation using standard blocking I/O and per-message reads.
+* **Zero-Copy Ingestion (~1.76M ops/sec):** Transitioned the server to use non-blocking sockets (`O_NONBLOCK`) and eliminated deserialization overhead by casting raw network byte buffers directly into `Client::Order` structs.
+* ** Syscall Amortization (~5.7M ops/sec):** Flamegraph profiling revealed the system was bottlenecked by the kernel context switch (`entry_SYSCALL_64_after_hwframe`) on every read. Implemented a 64KB user-space buffer to amortize `read()` syscalls, paired with `_mm_pause()` spin-waits for polling.
+
 
 ## Key Engineering Features
 
@@ -38,7 +44,7 @@ Price levels utilize intrusive doubly-linked lists. The `next` and `prev` pointe
 * **O(1) Removal:** Orders can be cancelled in constant time given their pointer.
 
 ### 3. Lock-Free Ingress
-Communication between the network thread and the matching engine is handled via a **Single-Producer-Single-Consumer (SPSC)** ring buffer (capacity 262,144), minimizing synchronization overhead.
+Communication between the network thread and the matching engine is handled via a **Single-Producer-Single-Consumer (SPSC)** ring buffer, minimizing synchronization overhead.
 
 ## Architecture Overview
 
@@ -94,4 +100,5 @@ The engine dumps telemetry to `stdout` every 1M orders and generates a shape sna
 ## Roadmap
 
 * **Level Container Optimization:** Refactor the `Orderbook` to use hierarchy bitset (for hot levels) + (map for cold levels) for managing Price Levels (replacing `std::vector<Level>`). This will eliminate the $O(N)$ overhead of shifting vector elements during order deletion. 
-* **Ingestion Optimization:** Implement batch reading for network sockets (e.g., `recvmmsg`) to amortize syscall overhead across multiple messages.
+
+Kernel Bypass / Advanced I/O: Evolve the user-space buffering system to use recvmmsg or io_uring to further push the boundaries of network ingestion.

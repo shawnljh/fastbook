@@ -1,21 +1,22 @@
 
 #include "ingress_telemetry.h"
+#include "socket_buffer.h"
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <fcntl.h>
+#include <immintrin.h>
 #include <iostream>
 #include <netinet/in.h>
 #include <order.h>
 #include <poll.h>
 #include <server.h>
 #include <spsc_queue.h>
-#include <thread>
 #include <types.h>
 #include <unistd.h>
 
-extern SPSCQueue<Client::Order, 262144> order_queue;
+extern SPSCQueue<Client::Order, 8388608> order_queue;
 
 constexpr int PORT = 8080;
 
@@ -40,7 +41,7 @@ ssize_t read_exact(int fd, void *buffer, size_t bytes,
     }
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
       // no data available yet
-      std::this_thread::sleep_for(std::chrono::microseconds(50));
+      _mm_pause();
       continue;
     }
     return -1; // real error
@@ -60,6 +61,7 @@ void start_tcp_server(std::atomic<bool> &stop_flag) {
   int not_queued = 0;
 
   socklen_t addrlen = sizeof(address);
+  SocketBuffer client_buffer = SocketBuffer();
 
   // Creating socket file descriptor
   if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -112,7 +114,7 @@ void start_tcp_server(std::atomic<bool> &stop_flag) {
     }
 
     if (errno == EWOULDBLOCK || errno == EAGAIN) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      _mm_pause();
       continue;
     }
 
@@ -150,7 +152,9 @@ void start_tcp_server(std::atomic<bool> &stop_flag) {
     }
 
     Client::Order order;
-    ssize_t n = read_exact(new_socket, &order, sizeof(order), stop_flag);
+
+    ssize_t n =
+        client_buffer.read_exact(new_socket, &order, sizeof(order), stop_flag);
 
     if (n == 0) {
       std::cout << "Client disconnected\n";
@@ -159,14 +163,6 @@ void start_tcp_server(std::atomic<bool> &stop_flag) {
     if (n != sizeof(order)) {
       std::cerr << "read error or short read";
     }
-
-    // cout << "Payload size: " << payload_size << "\n";
-
-    // cout << "Order Parsed:\n";
-    // cout << "  Side: " << (order.side == Side::Bid ? "Bid" : "Ask") <<
-    // "\n"; cout << "  Price: " << order.price << "\n"; cout << "  Quantity:
-    // " << order.quantity << "\n";
-    //
 
     if (order_queue.enqueue(order)) {
       enqueued++;
