@@ -64,7 +64,7 @@ Communication between the network thread and the matching engine is handled via 
 graph TD
     A[Client] -->|TCP| B[Network Thread]
     B -->|SPSC Queue| C[Matching Thread]
-    C -->|Lookup| D[Open Addressing Map]
+    C -->|Lookup| D[Unordered Map]
     C -->|Traverse| E[Price Levels]
     D -->|Index| F[Slab Allocator]
     E -->|Ptr| F
