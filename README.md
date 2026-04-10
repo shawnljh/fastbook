@@ -21,9 +21,9 @@ Benchmarks run on `10,000,000` orders replay (reused ~12.5% of slots).
 ### Hardware Telemetry History
 Measured via Linux `perf` hardware performance counters.
 
-| Date | L1 Cache Miss Rate | Branch Misprediction | Notes |
-| :--- | :--- | :--- | :--- |
-| **Mar 2026** | 4.56% | 6.49% | Baseline matching engine utilizing `std::unordered_map` for lookups, a `std::vector` of price levels, and dynamic heap allocation. |
+| Date | L1 Cache Miss Rate | Branch Misprediction | TLB Miss | Minor Faults | Notes |
+| :--- | :--- | :--- | :--- | :--- | :--- | 
+| **Mar 2026** | 4.56% | 6.49% | 3.46% | 11,478 | Baseline matching engine utilizing `std::unordered_map` for lookups, a `std::vector` of price levels, and dynamic heap allocation. No memory pinning or warmup phase|
 
 ## The Performance Journey
 Building this engine has been an ongoing exercise in profiling, identifying, and systematically eliminating bottlenecks.
