@@ -18,6 +18,13 @@ Benchmarks run on `10,000,000` orders replay (reused ~12.5% of slots).
 
 *Note: Latency measures the time from dequeuing an order to completing the match/insert operation. Network IO is excluded from engine latency metrics.*
 
+### Hardware Telemetry History
+Measured via Linux `perf` hardware performance counters.
+
+| Date | L1 Cache Miss Rate | Branch Misprediction | Notes |
+| :--- | :--- | :--- | :--- |
+| **Mar 2026** | 4.56% | 6.49% | Baseline matching engine utilizing `std::unordered_map` for lookups, a `std::vector` of price levels, and dynamic heap allocation. |
+
 ## The Performance Journey
 Building this engine has been an ongoing exercise in profiling, identifying, and systematically eliminating bottlenecks.
 
@@ -34,7 +41,7 @@ Building this engine has been an ongoing exercise in profiling, identifying, and
 ## Key Engineering Features
 
 ### 1. Memory Architecture (`OrderPool`) *(WIP: `feature/open-addressing-pool`)*
-The engine avoids `malloc`/`free` using a custom memory pool.
+The engine avoids `malloc`/`free` in orderpool using a custom memory pool.
 
 * **Slab Allocation:** Orders are allocated from pre-reserved contiguous memory blocks ("slabs") to ensure spatial locality.
 * **Open Addressing Lookup:**
