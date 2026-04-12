@@ -23,7 +23,7 @@ Measured via Linux `perf` hardware performance counters.
 
 | Date | L1 Cache Miss Rate | Branch Misprediction | TLB Miss | Minor Faults | Notes |
 | :--- | :--- | :--- | :--- | :--- | :--- | 
-| **Mar 2026** | 4.56% | 6.49% | 3.46% | 11,478 | Baseline matching engine utilizing `std::unordered_map` for lookups, a `std::vector` of price levels, and dynamic heap allocation. No memory pinning or warmup phase|
+| **Mar 2026** | 4.73% | 2.76% | 3.55% | 12,376 | Baseline matching engine utilizing `std::unordered_map` for lookups, a `std::vector` of price levels, and dynamic heap allocation. No memory pinning or warmup phase|
 
 ## The Performance Journey
 Building this engine has been an ongoing exercise in profiling, identifying, and systematically eliminating bottlenecks.
@@ -88,17 +88,19 @@ python3 client/gen_orders.py
 cmake --build build-release -j
 ```
 
-### 3. Run the Engine
+### 3. Run the Benchmark Client
+In a separate terminal, run the python replay script to send orders to the engine:
+```bash
+python3 client/client.py
+```
+
+### 4. Run the Engine
 Start the server (binds to port 8080):
 ```bash
 ./build-release/fastbook
 ```
 
-### 4. Run the Benchmark Client
-In a separate terminal, run the python replay script to blast orders at the engine:
-```bash
-python3 client/client.py
-```
+
 
 ## Telemetry & Analysis
 The engine dumps telemetry to `stdout` every 1M orders and generates a shape snapshot on exit.
