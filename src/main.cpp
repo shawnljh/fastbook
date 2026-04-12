@@ -6,13 +6,14 @@
 #include <chrono>
 #include <csignal>
 #include <cstdint>
+#include <emmintrin.h>
 #include <iostream>
 #include <orderbook.h>
 #include <thread>
 
 using namespace std;
 
-SPSCQueue<Client::Order, 8388608> order_queue;
+SPSCQueue<Client::Order, 65536> order_queue;
 Orderbook book;
 uint64_t order_id = 1;
 
@@ -30,12 +31,20 @@ void matching_loop(std::atomic<bool> &stop_flag) {
   chrono::steady_clock::time_point start;
   bool started = false;
 
-  while (!stop_flag.load()) {
-    auto maybe_order = order_queue.dequeue();
+  while (true) {
 
-    if (!maybe_order) {
-      std::this_thread::sleep_for(chrono::microseconds(500));
-      continue;
+    auto maybe_order = order_queue.dequeue();
+    if (!maybe_order) [[unlikely]] {
+      // queue is empty, check whether network stopped
+      if (stop_flag.load(std::memory_order::acquire)) {
+        maybe_order = order_queue.dequeue();
+        if (!maybe_order) {
+          break; // Queue is empty and network is dead. Safe to exit
+        }
+      } else {
+        _mm_pause();
+        continue;
+      }
     }
 
     ScopedTimer t(book.telemetry_);
@@ -53,7 +62,6 @@ void matching_loop(std::atomic<bool> &stop_flag) {
       book.addOrder(order_id++, order.price, order.quantity, is_buy,
                     order.account_id);
     } else if (order.order_type == OrderType::Market) {
-
       book.matchMarketOrder(is_buy, order.quantity);
     } else {
       book.removeOrder(order.order_id);

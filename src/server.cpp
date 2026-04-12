@@ -1,6 +1,7 @@
 
 #include "ingress_telemetry.h"
 #include "socket_buffer.h"
+#include <atomic>
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
@@ -16,7 +17,7 @@
 #include <types.h>
 #include <unistd.h>
 
-extern SPSCQueue<Client::Order, 8388608> order_queue;
+extern SPSCQueue<Client::Order, 65536> order_queue;
 
 constexpr int PORT = 8080;
 
@@ -106,7 +107,7 @@ void start_tcp_server(std::atomic<bool> &stop_flag) {
     exit(EXIT_FAILURE);
   }
 
-  while (!stop_flag.load()) {
+  while (!stop_flag.load(memory_order::relaxed)) {
     new_socket = accept(server_fd, (struct sockaddr *)&address, &addrlen);
 
     if (new_socket >= 0) {
@@ -145,8 +146,9 @@ void start_tcp_server(std::atomic<bool> &stop_flag) {
     exit(EXIT_FAILURE);
   }
 
-  while (!stop_flag.load()) {
+  while (!stop_flag.load(memory_order::relaxed)) {
     auto start = std::chrono::high_resolution_clock::now();
+
     if (!started) {
       t0 = chrono::steady_clock::now();
     }
@@ -158,25 +160,28 @@ void start_tcp_server(std::atomic<bool> &stop_flag) {
 
     if (n == 0) {
       std::cout << "Client disconnected\n";
+      stop_flag.store(true, memory_order_release);
       break;
     }
+
     if (n != sizeof(order)) {
       std::cerr << "read error or short read";
     }
 
-    if (order_queue.enqueue(order)) {
-      enqueued++;
-      if (!started) {
-        started = true;
-      }
-      auto end = std::chrono::high_resolution_clock::now();
-      uint64_t ns =
-          std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
-              .count();
-      ingress_tel.record_latency(ns);
-    } else {
-      not_queued++;
+    while (!order_queue.enqueue(order)) {
+      _mm_pause();
     }
+
+    enqueued++;
+
+    if (!started) {
+      started = true;
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    uint64_t ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
+            .count();
+    ingress_tel.record_latency(ns);
   }
 
   double elapsed_s = 0.0;
