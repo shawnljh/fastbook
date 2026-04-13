@@ -18,6 +18,17 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -march=native -fno-omit-frame-pointer
 # Enable warnings
 add_compile_options(-Wall -Wextra -Wpedantic -O2)
 
+# === Telemetry Macro ===
+# On by default. To disable run: cmake -DENABLE_TELEMETRY=OFF
+option(ENABLE_TELEMETRY "Enable hardware cycle counting for latency telemetry" ON)
+
+if(ENABLE_TELEMETRY)
+    add_compile_definitions(ENABLE_TELEMETRY)
+    message(STATUS "Hardware Telemetry: ENABLED")
+else()
+    message(STATUS "Hardware Telemetry: DISABLED (Clean build for perf profiling)")
+endif()
+
 # === Dependencies ===
 enable_testing()
 find_package(GTest REQUIRED)

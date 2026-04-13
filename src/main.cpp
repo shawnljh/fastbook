@@ -1,3 +1,4 @@
+#include "TSCClock.h"
 #include "order.h"
 #include "server.h"
 #include "spsc_queue.h"
@@ -26,7 +27,7 @@ void handle_signal(int sig) {
   }
 }
 
-void matching_loop(std::atomic<bool> &stop_flag) {
+void matching_loop(std::atomic<bool> &stop_flag, TSCClock hardware_clock) {
   uint64_t processed = 0;
   chrono::steady_clock::time_point start;
   bool started = false;
@@ -47,7 +48,7 @@ void matching_loop(std::atomic<bool> &stop_flag) {
       }
     }
 
-    ScopedTimer t(book.telemetry_);
+    ScopedTimer t(book.telemetry_, hardware_clock);
     book.telemetry_.record_order();
 
     if (!started) {
@@ -88,9 +89,11 @@ int main() {
   std::atomic<bool> stop_flag{false};
   p_stop_flag = &stop_flag;
 
+  TSCClock hardware_clock;
+
   std::signal(SIGINT, handle_signal);
-  thread matcher(matching_loop, ref(stop_flag));
-  start_tcp_server(stop_flag);
+  thread matcher(matching_loop, ref(stop_flag), hardware_clock);
+  start_tcp_server(stop_flag, hardware_clock);
   matcher.join();
 
   std::cerr << "[Main] Graceful termination.\n";

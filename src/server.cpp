@@ -1,6 +1,11 @@
 
+#include "TSCClock.h"
 #include "ingress_telemetry.h"
 #include "socket_buffer.h"
+#include <order.h>
+#include <spsc_queue.h>
+#include <types.h>
+
 #include <atomic>
 #include <cerrno>
 #include <chrono>
@@ -10,12 +15,17 @@
 #include <immintrin.h>
 #include <iostream>
 #include <netinet/in.h>
-#include <order.h>
 #include <poll.h>
 #include <server.h>
-#include <spsc_queue.h>
-#include <types.h>
 #include <unistd.h>
+
+#ifdef ENABLE_TELEMETRY
+#define RECORD_START_TIME(clock) uint64_t _start = clock.start()
+#define RECORD_END_TIME(clock, tel) tel.record_latency(clock.stop() - _start)
+#else
+#define RECORD_START_TIME(clock)
+#define RECORD_END_TIME(clock, tel)
+#endif
 
 extern SPSCQueue<Client::Order, 65536> order_queue;
 
@@ -50,7 +60,7 @@ ssize_t read_exact(int fd, void *buffer, size_t bytes,
   return total_read;
 }
 
-void start_tcp_server(std::atomic<bool> &stop_flag) {
+void start_tcp_server(std::atomic<bool> &stop_flag, TSCClock hardware_clock) {
   int server_fd, new_socket;
   struct sockaddr_in address;
   int opt = 1;
@@ -147,7 +157,7 @@ void start_tcp_server(std::atomic<bool> &stop_flag) {
   }
 
   while (!stop_flag.load(memory_order::relaxed)) {
-    auto start = std::chrono::high_resolution_clock::now();
+    RECORD_START_TIME(hardware_clock);
 
     if (!started) {
       t0 = chrono::steady_clock::now();
@@ -177,11 +187,7 @@ void start_tcp_server(std::atomic<bool> &stop_flag) {
     if (!started) {
       started = true;
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    uint64_t ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
-            .count();
-    ingress_tel.record_latency(ns);
+    RECORD_END_TIME(hardware_clock, ingress_tel);
   }
 
   double elapsed_s = 0.0;

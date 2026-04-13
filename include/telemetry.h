@@ -1,9 +1,10 @@
 #pragma once
+#include "TSCClock.h"
 #include <algorithm>
 #include <atomic>
-#include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <sys/types.h>
 
 struct Telemetry {
   // Counters
@@ -16,9 +17,11 @@ struct Telemetry {
   std::atomic<uint64_t> total_allocs{0};
   std::atomic<uint64_t> reused_allocs{0};
 
-  static constexpr uint64_t BIN_WIDTH_NS = 25;        // each bin = 100 ns
-  static constexpr uint64_t MAX_TRACK_NS = 5'000'000; // 5 ms cap
-  static constexpr size_t NUM_BINS = MAX_TRACK_NS / BIN_WIDTH_NS + 1;
+  static constexpr uint64_t BIN_SHIFT = 5;
+  static constexpr uint64_t BIN_WIDTH_NS = 1 << BIN_SHIFT; // each bin = 32 ns
+                                                           //
+  static constexpr uint64_t MAX_TRACK_NS = 5'000'000;      // 5 ms cap
+  static constexpr size_t NUM_BINS = (MAX_TRACK_NS >> BIN_SHIFT) + 1;
   std::array<std::atomic<uint64_t>, NUM_BINS> hist{};
 
   void record_order() noexcept {
@@ -44,7 +47,7 @@ struct Telemetry {
   }
 
   void record_latency(uint64_t ns) noexcept {
-    size_t idx = std::min<size_t>(ns / BIN_WIDTH_NS, NUM_BINS - 1);
+    size_t idx = std::min<size_t>((ns >> BIN_SHIFT), NUM_BINS - 1);
     hist[idx].fetch_add(1, std::memory_order_relaxed);
 
     total_latency_ns.fetch_add(ns, std::memory_order_relaxed);
@@ -106,15 +109,21 @@ struct Telemetry {
 
 // Per-order latency measurement
 struct ScopedTimer {
+#ifdef ENABLE_TELEMETRY
+
   Telemetry &tel;
-  std::chrono::high_resolution_clock::time_point start;
-  explicit ScopedTimer(Telemetry &t) noexcept
-      : tel(t), start(std::chrono::high_resolution_clock::now()) {}
+  TSCClock hardware_clock;
+  uint64_t start;
+  explicit ScopedTimer(Telemetry &t, TSCClock clock) noexcept
+      : tel(t), hardware_clock(clock), start(hardware_clock.start()) {}
 
   ~ScopedTimer() noexcept {
-    auto end = std::chrono::high_resolution_clock::now();
-    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
-                  .count();
+    uint64_t end = hardware_clock.stop();
+    auto ns = hardware_clock.cycles_to_nanoseconds(end - start);
     tel.record_latency(ns);
   }
+#else
+  explicit ScopedTimer(Telemetry & /*t*/, TSCClock /*clock*/) noexcept {}
+  ~ScopedTimer() noexcept {}
+#endif //  ENABLE_TELEMETRY
 };
