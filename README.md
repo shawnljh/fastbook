@@ -15,7 +15,7 @@ To prevent the "observer effect" (where the overhead of the timer itself slows d
 
 ### 1. Latency Profile (Apples-to-Apples Historical Benchmark)
 **Build Flag:** `-DENABLE_TELEMETRY=ON`
-This profile injects x86-64 hardware intrinsics (`__rdtsc` / `__rdtscp`) into the hot path to measure microsecond-perfect execution time for every individual order. This profile maintains continuity with historical benchmarks by keeping telemetry active.
+This profile injects x86-64 hardware intrinsics (`__rdtsc` / `__rdtscp`) into the hot path to measure execution time for every individual order. This profile maintains continuity with historical benchmarks by keeping telemetry active.
 
 | Metric | Result |
 | :--- | :--- |
@@ -47,7 +47,7 @@ This profile measures the real-world limitations of the standard Linux network s
 
 | Metric | Result |
 | :--- | :--- |
-| **Throughput** | **~3.67 Million orders/sec** |
+| **Throughput** | **~3.65 Million orders/sec** |
 
 *Note on Network Bottlenecks: Flamegraph profiling (see `assets/tcp_stack_flamegraph.svg`) confirms that during physical network ingestion, the C++ matching engine spends the majority of its time starved (spin-waiting). Throughput is hard-capped by kernel context switches (`entry_SYSCALL_64`), hardware interrupts (IRQs), and memory copies from kernel-space to user-space inside the `ksys_read` stack. Achieving the engine's true 7.4M+ capacity over a physical network requires Kernel Bypass technologies.*
 
