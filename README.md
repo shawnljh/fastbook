@@ -8,6 +8,12 @@ Motivation: This project is a dedicated testbed for strengthening mechanical sym
 
 Benchmarks run on a `10,000,000` orders replay (reused ~12.5% of slots).
 
+**Hardware Specification**
+To ensure reproducibility and establish a baseline for hardware performance counters, all benchmarks were executed on the following system:
+* **CPU:** AMD Ryzen 7 Pro 8840U (8C/16T, up to 5.13 GHz)
+* **Memory:** 64 GB RAM
+* **OS:** Arch Linux (Kernel 6.17.9-arch1-1)
+
 **Test Environment Preface: TCP Loopback**
 All primary benchmarks are executed using local TCP loopback (`127.0.0.1`). Standard TCP/IP over physical Ethernet introduces massive OS kernel overhead (hardware IRQs, DMA transfers, and `ksys_read` context switches) which artificially throttles ingestion. By using the loopback interface, the kernel bypasses the physical NIC and performs direct memory-to-memory handoffs. This simulates the wire-to-user-space speeds achieved by production Kernel Bypass technologies (DPDK, Solarflare) and allows us to isolate and stress-test the raw mechanical sympathy of the C++ matching engine.
 
