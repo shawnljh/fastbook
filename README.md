@@ -173,6 +173,3 @@ The engine dumps telemetry to `stdout` every 1M orders and generates a shape sna
 * **Level Container Optimization:** Refactor the `Orderbook` to use hierarchy bitset (for hot levels) + (map for cold levels) for managing Price Levels (replacing `std::vector<Level>`). This will eliminate the $O(N)$ overhead of shifting vector elements during order deletion. 
 
 * **Kernel Bypass / Advanced I/O:** Evolve the user-space buffering system to use `recvmmsg` or `io_uring` to further push the boundaries of network ingestion.
-
-
-I also want to preface the tcp loopback in my normal benchmarking
